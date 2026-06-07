@@ -7,6 +7,10 @@ import be.betterplugins.bettersleeping.listeners.BuffsHandler;
 import be.betterplugins.bettersleeping.messaging.ScreenMessenger;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorldManager;
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
+import be.betterplugins.bettersleeping.services.scheduler.FoliaPluginScheduler;
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
+import be.betterplugins.bettersleeping.services.world.FoliaWorldAccessService;
+import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.bettersleeping.util.FileLogger;
 import be.betterplugins.bettersleeping.util.Theme;
 import be.betterplugins.core.CoreFactory;
@@ -31,6 +35,13 @@ import java.util.logging.Level;
 
 public class BetterSleepingModule extends AbstractModule
 {
+
+    @Override
+    protected void configure()
+    {
+        bind(PluginScheduler.class).to(FoliaPluginScheduler.class);
+        bind(WorldAccessService.class).to(FoliaWorldAccessService.class);
+    }
 
     private final BetterSleeping plugin;
     private final Level logLevel;

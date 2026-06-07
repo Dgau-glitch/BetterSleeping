@@ -112,7 +112,7 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         if (enableBossBar)
         {
             this.bossBarRunnable = injector.getInstance(BossBarRunnable.class);
-            this.bossBarRunnable.runTaskTimer(this, 20L, 5L);
+            this.bossBarRunnable.start(20L, 5L);
         }
 
         // Handle GSit events

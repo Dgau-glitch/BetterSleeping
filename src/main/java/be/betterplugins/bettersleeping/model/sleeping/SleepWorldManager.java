@@ -1,11 +1,13 @@
 package be.betterplugins.bettersleeping.model.sleeping;
 
 import be.betterplugins.bettersleeping.listeners.AnimationHandler;
-import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
 import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.SleepStatus;
-import be.betterplugins.bettersleeping.runnables.SleepRunnable;
-import be.betterplugins.core.collections.DoubleMap;
+import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
+import be.betterplugins.bettersleeping.services.scheduler.TaskHandle;
+import be.betterplugins.bettersleeping.services.sleeping.SleepWorldTicker;
+import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import be.betterplugins.core.messaging.messenger.Messenger;
 import com.google.inject.Inject;
@@ -14,24 +16,25 @@ import org.bukkit.GameRule;
 import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 
 @Singleton
 public class SleepWorldManager
 {
 
-    private final DoubleMap<SleepWorld, World, SleepRunnable> sleepRunnables;
+    private final Map<String, ManagedSleepWorld> sleepWorlds;
     private final AnimationHandler animationHandler;
 
     @Inject
-    public SleepWorldManager(List<World> allWorlds, ConfigContainer config, BypassChecker bypassChecker, Messenger messenger, AnimationHandler animationHandler, JavaPlugin plugin, BPLogger logger)
+    public SleepWorldManager(List<World> allWorlds, ConfigContainer config, BypassChecker bypassChecker, Messenger messenger, AnimationHandler animationHandler, PluginScheduler scheduler, WorldAccessService worldAccess, BPLogger logger)
     {
         YamlConfiguration sleepingSettings = config.getSleeping_settings();
-        this.sleepRunnables = new DoubleMap<>();
+        this.sleepWorlds = new HashMap<>();
 
         this.animationHandler = animationHandler;
 
@@ -55,12 +58,11 @@ public class SleepWorldManager
             {
                 logger.log(Level.CONFIG, "Enabling BetterSleeping in world " + world.getName());
 
-                SleepWorld sleepWorld = new SleepWorld(world, config, bypassChecker, logger);
-                SleepRunnable runnable = new SleepRunnable(config, sleepWorld, messenger, logger);
+                SleepWorld sleepWorld = new SleepWorld(world, config, bypassChecker, logger, worldAccess);
+                SleepWorldTicker ticker = new SleepWorldTicker(config, sleepWorld, messenger, logger);
+                TaskHandle taskHandle = scheduler.repeatAtLocation(sleepWorld.getSchedulingLocation(), ticker::tick, 1L, 1L);
 
-                this.sleepRunnables.put(sleepWorld, world, runnable );
-
-                runnable.runTaskTimer(plugin, 1L, 1L);
+                this.sleepWorlds.put(sleepWorld.getWorldName(), new ManagedSleepWorld(ticker, taskHandle));
             }
             else
             {
@@ -78,8 +80,8 @@ public class SleepWorldManager
      */
     public @Nullable SleepStatus getSleepStatus(World world)
     {
-        SleepRunnable runnable = this.sleepRunnables.getBackward(world);
-        return runnable != null ? runnable.getSleepStatus() : null;
+        ManagedSleepWorld managedWorld = this.sleepWorlds.get(world.getName());
+        return managedWorld != null ? managedWorld.ticker.getSleepStatus() : null;
     }
 
 
@@ -91,7 +93,7 @@ public class SleepWorldManager
      */
     public boolean isWorldEnabled(World world)
     {
-        return sleepRunnables.getBackward( world ) != null;
+        return sleepWorlds.containsKey( world.getName() );
     }
 
     /**
@@ -101,10 +103,10 @@ public class SleepWorldManager
      */
     public void addSleeper(Player player)
     {
-        SleepRunnable runnable = sleepRunnables.getBackward( player.getWorld() );
-        if (runnable != null)
+        ManagedSleepWorld managedWorld = sleepWorlds.get( player.getWorld().getName() );
+        if (managedWorld != null)
         {
-            runnable.addSleeper(player);
+            managedWorld.ticker.addSleeper(player);
             this.animationHandler.startSleepingAnimation( player );
         }
     }
@@ -117,9 +119,9 @@ public class SleepWorldManager
      */
     public void removeSleeper(Player player)
     {
-        SleepRunnable runnable = sleepRunnables.getBackward( player.getWorld() );
-        if (runnable != null)
-            runnable.addSleeper( player );
+        ManagedSleepWorld managedWorld = sleepWorlds.get( player.getWorld().getName() );
+        if (managedWorld != null)
+            managedWorld.ticker.removeSleeper( player );
     }
 
 
@@ -128,9 +130,21 @@ public class SleepWorldManager
      */
     public void stopRunnables()
     {
-        for (SleepRunnable runnable : this.sleepRunnables.values())
-            if (!runnable.isCancelled())
-                runnable.cancel();
-        this.sleepRunnables.clear();
+        for (ManagedSleepWorld managedWorld : this.sleepWorlds.values())
+            if (!managedWorld.taskHandle.isCancelled())
+                managedWorld.taskHandle.cancel();
+        this.sleepWorlds.clear();
+    }
+
+    private static class ManagedSleepWorld
+    {
+        private final SleepWorldTicker ticker;
+        private final TaskHandle taskHandle;
+
+        private ManagedSleepWorld(SleepWorldTicker ticker, TaskHandle taskHandle)
+        {
+            this.ticker = ticker;
+            this.taskHandle = taskHandle;
+        }
     }
 }

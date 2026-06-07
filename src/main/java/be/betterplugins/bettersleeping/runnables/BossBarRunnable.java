@@ -13,7 +13,8 @@ import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
+import be.betterplugins.bettersleeping.services.scheduler.TaskHandle;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,17 +23,20 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 @Singleton
-public class BossBarRunnable extends BukkitRunnable
+public class BossBarRunnable
 {
     private final SleepWorldManager sleepWorldManager;
     private final Messenger messenger;
     private final Map<World, BossBar> bossBarMap;
+    private final PluginScheduler scheduler;
+    private TaskHandle taskHandle;
 
     @Inject
-    public BossBarRunnable(SleepWorldManager sleepWorldManager, Messenger messenger)
+    public BossBarRunnable(SleepWorldManager sleepWorldManager, Messenger messenger, PluginScheduler scheduler)
     {
         this.sleepWorldManager = sleepWorldManager;
         this.messenger = messenger;
+        this.scheduler = scheduler;
         this.bossBarMap = new HashMap<>();
     }
 
@@ -56,7 +60,11 @@ public class BossBarRunnable extends BukkitRunnable
         );
     }
 
-    @Override
+    public void start(long initialDelayTicks, long periodTicks)
+    {
+        this.taskHandle = scheduler.repeatGlobal(this::run, initialDelayTicks, periodTicks);
+    }
+
     public void run()
     {
         // Update current bossbars
@@ -116,7 +124,8 @@ public class BossBarRunnable extends BukkitRunnable
      */
     public void stopBossBars()
     {
-        this.cancel();
+        if (this.taskHandle != null && !this.taskHandle.isCancelled())
+            this.taskHandle.cancel();
 
         for (BossBar bossBar : bossBarMap.values())
         {

@@ -1,4 +1,4 @@
-package be.betterplugins.bettersleeping.runnables;
+package be.betterplugins.bettersleeping.services.sleeping;
 
 import be.betterplugins.bettersleeping.api.BecomeDayEvent;
 import be.betterplugins.bettersleeping.api.BecomeDayEvent.Cause;
@@ -12,13 +12,17 @@ import be.betterplugins.core.messaging.messenger.MsgEntry;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
-public class SleepRunnable extends BukkitRunnable
+public class SleepWorldTicker
 {
     private final Messenger messenger;
 
@@ -32,7 +36,7 @@ public class SleepRunnable extends BukkitRunnable
     private TimeState timeState;
     private boolean isSkipping;
 
-    public SleepRunnable(ConfigContainer config, SleepWorld sleepWorld, Messenger messenger, BPLogger logger)
+    public SleepWorldTicker(ConfigContainer config, SleepWorld sleepWorld, Messenger messenger, BPLogger logger)
     {
         this.messenger = messenger;
 
@@ -58,7 +62,7 @@ public class SleepRunnable extends BukkitRunnable
 
     private Double getGeneralOrPerWorld(String subPath, YamlConfiguration config)
     {
-        String perWorldPath = "world_settings." + sleepWorld.getWorld().getName() + "." + subPath;
+        String perWorldPath = "world_settings." + sleepWorld.getWorldName() + "." + subPath;
         if (config.contains( perWorldPath ))
         {
             return config.getDouble( perWorldPath );
@@ -78,7 +82,7 @@ public class SleepRunnable extends BukkitRunnable
     public void addSleeper(Player sleeper)
     {
         List<Player> players = sleepWorld.getAllPlayersInWorld();
-        players.removeIf(player -> player.getUniqueId() == sleeper.getUniqueId());
+        players.removeIf(player -> player.getUniqueId().equals(sleeper.getUniqueId()));
 
         if (!sleeper.isSleeping())
         {
@@ -160,8 +164,7 @@ public class SleepRunnable extends BukkitRunnable
         return speedup;
     }
 
-    @Override
-    public void run()
+    public void tick()
     {
         // Remove invalid sleepers
         this.sleepers.removeIf(this::isNotValidSleeper);
