@@ -1,9 +1,11 @@
 package be.betterplugins.bettersleeping.listeners;
 
 import be.betterplugins.bettersleeping.api.BecomeDayEvent;
+import be.betterplugins.bettersleeping.api.BecomeDayEvent.PlayerSnapshot;
 import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
 import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import be.betterplugins.core.messaging.messenger.MsgEntry;
 import com.google.inject.Inject;
@@ -15,10 +17,10 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,6 +32,8 @@ public class BuffsHandler implements Listener {
 
     private final BPLogger logger;
     private final MessageDeliveryService messageDeliveryService;
+    private final PluginScheduler scheduler;
+    private final JavaPlugin plugin;
     private final BypassChecker bypassChecker;
 
     private final Set<PotionEffect> sleepingBuffs;
@@ -43,10 +47,12 @@ public class BuffsHandler implements Listener {
      * Event handler for {@link be.betterplugins.bettersleeping.api.BecomeDayEvent}
      */
     @Inject
-    public BuffsHandler(BPLogger logger, MessageDeliveryService messageDeliveryService, BypassChecker bypassChecker, ConfigContainer config)
+    public BuffsHandler(BPLogger logger, MessageDeliveryService messageDeliveryService, PluginScheduler scheduler, JavaPlugin plugin, BypassChecker bypassChecker, ConfigContainer config)
     {
         this.logger = logger;
         this.messageDeliveryService = messageDeliveryService;
+        this.scheduler = scheduler;
+        this.plugin = plugin;
         this.bypassChecker = bypassChecker;
 
         YamlConfiguration buffsConfig = config.getBuffs();
@@ -78,46 +84,48 @@ public class BuffsHandler implements Listener {
 
         if (sleepingBuffs.size() > 0)
         {
-            messageDeliveryService.send(
-                    event.getPlayersWhoSlept(),
-                    "buff_received",
-                    new MsgEntry("<var>", "" + sleepingBuffs.size())
-            );
-            giveEffects(event.getPlayersWhoSlept(), sleepingBuffs, sleepingCommands);
+            for (PlayerSnapshot snapshot : event.getPlayersWhoSleptSnapshots())
+                giveEffects(snapshot, sleepingBuffs, sleepingCommands, "buff_received", false);
         }
 
         if (sleepingDebuffs.size() > 0)
         {
-            List<Player> nonSleepers = new ArrayList<>();
-            for (Player player : event.getPlayersWhoDidNotSleep())
-            {
-                if ( ! bypassChecker.isPlayerBypassed( player ))
-                    nonSleepers.add( player );
-            }
-
-            messageDeliveryService.send(
-                    nonSleepers,
-                    "debuff_received",
-                    new MsgEntry("<var>", "" + sleepingDebuffs.size())
-            );
-            giveEffects(nonSleepers, sleepingDebuffs, nonSleepingCommands);
+            for (PlayerSnapshot snapshot : event.getPlayersWhoDidNotSleepSnapshots())
+                giveEffects(snapshot, sleepingDebuffs, nonSleepingCommands, "debuff_received", true);
         }
     }
 
 
-    private void giveEffects(List<Player> players, Set<PotionEffect> effects, List<String> commands)
+    private void giveEffects(PlayerSnapshot snapshot, Set<PotionEffect> effects, List<String> commands, String messageKey, boolean skipBypassed)
     {
-        for (Player player : players)
-        {
-            // Execute each command
-            for (String command : commands)
-            {
-                command = command.replace("<user>", player.getName());
-                Bukkit.getServer().dispatchCommand( Bukkit.getConsoleSender(), command );
-            }
+        scheduler.runGlobal(() -> {
+            Player player = plugin.getServer().getPlayer(snapshot.getPlayerId());
+            if (player == null || !player.isOnline())
+                return;
 
-            // Add (de)buffs
-            player.addPotionEffects(effects);
+            scheduler.runForEntity(player, () -> giveEffectsInEntityContext(player, snapshot, effects, commands, messageKey, skipBypassed));
+        });
+    }
+
+    private void giveEffectsInEntityContext(Player player, PlayerSnapshot snapshot, Set<PotionEffect> effects, List<String> commands, String messageKey, boolean skipBypassed)
+    {
+        if (skipBypassed && bypassChecker.isPlayerBypassed(player))
+            return;
+
+        messageDeliveryService.send(
+                player,
+                messageKey,
+                new MsgEntry("<var>", "" + effects.size())
+        );
+
+        // Add (de)buffs in the player entity context.
+        player.addPotionEffects(effects);
+
+        // Execute each command on the global region scheduler.
+        for (String command : commands)
+        {
+            String commandToRun = command.replace("<user>", snapshot.getPlayerName());
+            scheduler.runGlobal(() -> Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), commandToRun));
         }
     }
 

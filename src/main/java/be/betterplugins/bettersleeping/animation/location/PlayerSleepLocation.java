@@ -13,6 +13,11 @@ public class PlayerSleepLocation implements IVariableLocation
         this.player = player;
     }
 
+    public Player getPlayer()
+    {
+        return player;
+    }
+
     @Override
     public Location getLocation()
     {

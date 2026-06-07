@@ -57,8 +57,9 @@ public class SleepWorldManager
             Boolean doDayLightRule = world.getGameRuleValue(GameRule.DO_DAYLIGHT_CYCLE);
             boolean doDayLightCycle = doDayLightRule == null || doDayLightRule;
 
-            // Only enable if this world is enabled in the config AND time has been paused
-            if (isEnabled && !doDayLightCycle)
+            // BetterSleeping owns the daylight-cycle gamerule via WorldStateHandler, which applies it through Folia schedulers.
+            // Do not require the scheduled gamerule mutation to have completed before enabling the world ticker.
+            if (isEnabled)
             {
                 logger.log(Level.CONFIG, "Enabling BetterSleeping in world " + world.getName());
 
@@ -70,7 +71,7 @@ public class SleepWorldManager
             }
             else
             {
-                logger.log(Level.CONFIG, "NOT enabling BetterSleeping in world " + world.getName() + ". Enabled in config? " + isEnabled + ". DoDayLightCycle? " + doDayLightCycle);
+                logger.log(Level.CONFIG, "NOT enabling BetterSleeping in world " + world.getName() + ". Enabled in config? " + isEnabled + ". DoDayLightCycle before scheduled state apply? " + doDayLightCycle);
             }
         }
     }

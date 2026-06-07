@@ -7,10 +7,12 @@ import com.google.inject.Singleton;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 @Singleton
 public class TimeSetToDayCounter implements Listener {
 
-    private int counter = 0;
+    private final AtomicInteger counter = new AtomicInteger();
 
     @Inject
     public TimeSetToDayCounter() {}
@@ -19,14 +21,12 @@ public class TimeSetToDayCounter implements Listener {
     public void onTimeSetToDay(BecomeDayEvent event)
     {
         if (event.getCause() == Cause.SLEEPING)
-            counter++;
+            counter.incrementAndGet();
     }
 
     public int resetCounter()
     {
-        int temp = counter;
-        counter = 0;
-        return temp;
+        return counter.getAndSet(0);
     }
 
 }

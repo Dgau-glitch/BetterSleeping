@@ -1,47 +1,51 @@
 package be.betterplugins.bettersleeping.animation;
 
 import be.betterplugins.bettersleeping.animation.location.IVariableLocation;
-import org.bukkit.Bukkit;
+import be.betterplugins.bettersleeping.animation.location.PlayerSleepLocation;
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
+import be.betterplugins.bettersleeping.services.scheduler.TaskHandle;
 import org.bukkit.Location;
 import org.bukkit.Particle;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ZZZAnimation extends Animation implements PreComputeable<Double>
 {
 
     private final List<Double> rotations;
-    private static final Map<Double, List<Vector>> animationComputations = new HashMap<>();
+    private static final Map<Double, List<Vector>> animationComputations = new ConcurrentHashMap<>();
 
     private final Particle particle;
     private final double size;
     private final double spacing;
 
-    private final long delay;
+    private final long delayTicks;
 
-    private final JavaPlugin plugin;
+    private final PluginScheduler scheduler;
 
 
-    public ZZZAnimation(Particle particle, double size, double spacing, long delayMilliseconds, JavaPlugin plugin)
+    public ZZZAnimation(Particle particle, double size, double spacing, long delayMilliseconds, PluginScheduler scheduler)
     {
-        this.plugin = plugin;
+        this.scheduler = scheduler;
 
         this.particle = particle;
         this.size = size;
         this.spacing = spacing;
 
-        this.delay = delayMilliseconds;
+        this.delayTicks = Math.max(1L, Math.round(delayMilliseconds / 50.0));
 
         this.rotations = new ArrayList<>();
-        for (double rotation = 0; rotation < 2 * Math.PI; rotation += Math.PI/16)
+        for (double rotation = 0; rotation < 2 * Math.PI; rotation += Math.PI / 16)
         {
             this.rotations.add(rotation);
-            preCompute( rotation );
+            preCompute(rotation);
         }
 
     }
@@ -50,9 +54,11 @@ public class ZZZAnimation extends Animation implements PreComputeable<Double>
     @Override
     public void preCompute(Double rotation)
     {
-        // Do calculations async
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () ->
-        {
+        if (animationComputations.containsKey(rotation))
+            return;
+
+        // Do only math/vector calculations async.
+        scheduler.runAsync(() -> {
 
             // Load the raw animation by following the path
 
@@ -87,17 +93,17 @@ public class ZZZAnimation extends Animation implements PreComputeable<Double>
             // Perform calculations
 
             double halfSize = (3 * size) / 2;
-            Vector offset = new Vector(-halfSize, halfSize, 0).add( new Vector(0, 1 / spacing, 0) );
+            Vector offset = new Vector(-halfSize, halfSize, 0).add(new Vector(0, 1 / spacing, 0));
             List<Vector> locations = new ArrayList<>();
             for (Vector position : rawLocations)
             {
-                position.add( offset );
-                position.rotateAroundY( rotation );
-                position.multiply( spacing );
-                locations.add( position );
+                position.add(offset);
+                position.rotateAroundY(rotation);
+                position.multiply(spacing);
+                locations.add(position);
             }
 
-            animationComputations.put( rotation, locations);
+            animationComputations.put(rotation, Collections.unmodifiableList(locations));
         });
     }
 
@@ -105,51 +111,38 @@ public class ZZZAnimation extends Animation implements PreComputeable<Double>
     @Override
     public boolean isComputed(Double rotation)
     {
-        return animationComputations.containsKey( rotation );
+        return animationComputations.containsKey(rotation);
     }
 
 
     @Override
-    public void startAnimation(IVariableLocation variableLocation)
+    public TaskHandle startAnimation(IVariableLocation variableLocation)
     {
+        if (!(variableLocation instanceof PlayerSleepLocation))
+            return super.startAnimation(variableLocation);
+
         super.startAnimation(variableLocation);
+        PlayerSleepLocation playerSleepLocation = (PlayerSleepLocation) variableLocation;
+        Player player = playerSleepLocation.getPlayer();
+        AtomicInteger iteration = new AtomicInteger();
 
-        // Handle particle spawning async
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () ->
-        {
+        return scheduler.repeatForEntity(player, () -> {
+            if (!super.isPlaying)
+                return;
 
-            int iteration = 0;
-            while (super.isPlaying)
+            // Pick a rotation in the entity-owning context.
+            double rotation = this.rotations.get(iteration.getAndUpdate(value -> (value + 1) % this.rotations.size()));
+            Location origin = playerSleepLocation.getLocation();
+            if (origin.getWorld() == null)
+                return;
+
+            // Draw particles in the entity-owning region instead of from an async task.
+            List<Vector> locations = animationComputations.get(rotation);
+            if (locations != null)
             {
-
-                // Pick a random rotation
-                double rotation = this.rotations.get( iteration );
-
-                Location origin = variableLocation.getLocation();
-                if (origin.getWorld() == null) return;
-
-                // Draw particles
-                List<Vector> locations = animationComputations.get( rotation );
-                if (locations != null)
-                {
-                    for (Vector location : locations)
-                    {
-                        origin.getWorld().spawnParticle(particle, origin.clone().add( location ), 1);
-                    }
-                }
-
-                iteration++;
-                iteration = iteration % this.rotations.size();
-                try
-                {
-                    Thread.sleep( delay );
-                }
-                catch (InterruptedException e)
-                {
-                    super.isPlaying = false;
-                    this.stopAnimation();
-                }
+                for (Vector location : locations)
+                    origin.getWorld().spawnParticle(particle, origin.clone().add(location), 1);
             }
-        });
+        }, 1L, delayTicks);
     }
 }

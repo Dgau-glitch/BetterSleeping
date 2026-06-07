@@ -1,6 +1,6 @@
 package be.betterplugins.bettersleeping.services.scheduler;
 
-final class RetiredTaskHandle implements TaskHandle
+public final class RetiredTaskHandle implements TaskHandle
 {
     @Override
     public void cancel()
