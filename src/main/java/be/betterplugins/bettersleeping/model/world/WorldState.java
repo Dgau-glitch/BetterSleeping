@@ -12,6 +12,9 @@ public class WorldState
     private final boolean doDayLightCycle;
     private final boolean supportsSleepingPercentage;
     private final int percentageSetting;
+    private final Long time;
+    private final Boolean storm;
+    private final Boolean thundering;
 
     /**
      * Capture the world state of a given world.
@@ -35,7 +38,11 @@ public class WorldState
             this.percentageSetting = 100;
         }
 
-        logger.log(Level.FINER, "Worldstate for world '" + world.getName() + "': Cycle time: " + doDayLightCycle + ", 1.17+? " + supportsSleepingPercentage + ", percentage setting? " + percentageSetting);
+        this.time = world.getTime();
+        this.storm = world.hasStorm();
+        this.thundering = world.isThundering();
+
+        logger.log(Level.FINER, "Worldstate for world '" + world.getName() + "': Cycle time: " + doDayLightCycle + ", 1.17+? " + supportsSleepingPercentage + ", percentage setting? " + percentageSetting + ", time: " + time + ", storm: " + storm + ", thunder: " + thundering);
     }
 
     private boolean hasGameRule(String gameRule)
@@ -58,10 +65,13 @@ public class WorldState
         this.doDayLightCycle = doDayLightCycle;
         this.supportsSleepingPercentage = this.hasGameRule( "playersSleepingPercentage" );
         this.percentageSetting = percentageSetting;
+        this.time = null;
+        this.storm = null;
+        this.thundering = null;
     }
 
     /**
-     * Update the given world to this state.
+     * Update the given world to this state. Must be called from the Folia global region because time, weather and game rules are global world state.
      *
      * @param world the world whose state is to be modified.
      */
@@ -71,6 +81,18 @@ public class WorldState
         if (this.supportsSleepingPercentage)
         {
             world.setGameRule( GameRule.PLAYERS_SLEEPING_PERCENTAGE, this.percentageSetting );
+        }
+        if (this.time != null)
+        {
+            world.setTime(this.time);
+        }
+        if (this.storm != null)
+        {
+            world.setStorm(this.storm);
+        }
+        if (this.thundering != null)
+        {
+            world.setThundering(this.thundering);
         }
     }
 }

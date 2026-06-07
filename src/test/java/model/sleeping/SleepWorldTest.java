@@ -2,40 +2,32 @@ package model.sleeping;
 
 import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorld;
+import be.betterplugins.bettersleeping.model.sleeping.SleepWorldId;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
+import be.betterplugins.bettersleeping.services.sleeping.SleepWorldTicker;
+import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
 import be.betterplugins.core.messaging.logging.BPLogger;
-import be.seeseemelk.mockbukkit.MockBukkit;
-import be.seeseemelk.mockbukkit.ServerMock;
-import be.seeseemelk.mockbukkit.WorldMock;
+import org.bukkit.Location;
+import org.bukkit.command.CommandSender;
 import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
 public class SleepWorldTest
 {
-
-    private ServerMock serverMock;
-
-    @Before
-    public void before()
-    {
-        serverMock = MockBukkit.mock();
-    }
-
-    @After
-    public void tearDown()
-    {
-        MockBukkit.unmock();
-    }
 
     public ConfigContainer mockConfigContainer()
     {
@@ -53,6 +45,109 @@ public class SleepWorldTest
         World world = mock(World.class);
         when(world.getEnvironment()).thenReturn(World.Environment.NORMAL);
         when(player.getWorld()).thenReturn(world);
+    }
+
+    public SleepWorld createSleepWorld(World world, ConfigContainer config, BypassChecker bypassChecker)
+    {
+        return new SleepWorld(world, config, bypassChecker, mock(BPLogger.class), new TestWorldAccessService(world));
+    }
+
+
+    private static class NoOpMessageDeliveryService implements MessageDeliveryService
+    {
+        @Override
+        public void send(CommandSender receiver, String messageKey, be.betterplugins.core.messaging.messenger.MsgEntry... entries)
+        {
+        }
+
+        @Override
+        public void send(UUID receiverId, String messageKey, be.betterplugins.core.messaging.messenger.MsgEntry... entries)
+        {
+        }
+
+        @Override
+        public void send(Collection<Player> receivers, String messageKey, be.betterplugins.core.messaging.messenger.MsgEntry... entries)
+        {
+        }
+    }
+
+    private static class TestWorldAccessService implements WorldAccessService
+    {
+        private final World world;
+        private final SleepWorldId worldId;
+
+        private TestWorldAccessService(World world)
+        {
+            this.world = world;
+            this.worldId = SleepWorldId.fromWorld(world);
+        }
+
+        @Override
+        public SleepWorldId getId(World world)
+        {
+            return worldId;
+        }
+
+        @Override
+        public World getWorld(SleepWorldId worldId)
+        {
+            return world;
+        }
+
+        @Override
+        public Location getSchedulingLocation(SleepWorldId worldId)
+        {
+            return null;
+        }
+
+        @Override
+        public List<Player> getAllPlayersInWorld(SleepWorldId worldId)
+        {
+            return world.getPlayers();
+        }
+
+        @Override
+        public long getTime(SleepWorldId worldId)
+        {
+            return world.getTime();
+        }
+
+        @Override
+        public void setTime(SleepWorldId worldId, long time)
+        {
+            world.setTime(time);
+        }
+
+        @Override
+        public boolean isClearWeather(SleepWorldId worldId)
+        {
+            return world.isClearWeather();
+        }
+
+        @Override
+        public void clearWeather(SleepWorldId worldId)
+        {
+            world.setStorm(false);
+            world.setThundering(false);
+        }
+
+        @Override
+        public boolean isInWorld(SleepWorldId worldId, Player player)
+        {
+            return player.getWorld().equals(world);
+        }
+    }
+
+    public World mockTimedWorld(long initialTime)
+    {
+        World world = mock(World.class);
+        long[] time = {initialTime};
+        when(world.getTime()).thenAnswer(invocation -> time[0]);
+        doAnswer(invocation -> {
+            time[0] = invocation.getArgument(0);
+            return null;
+        }).when(world).setTime(anyLong());
+        return world;
     }
 
     @Test
@@ -74,7 +169,7 @@ public class SleepWorldTest
         World world = mock(World.class);
         when(world.getPlayers()).thenReturn( mockPlayerList );
 
-        SleepWorld sleepWorld = new SleepWorld(world, mockConfigContainer(), mock(BypassChecker.class), mock(BPLogger.class));
+        SleepWorld sleepWorld = createSleepWorld(world, mockConfigContainer(), mock(BypassChecker.class));
         assert sleepWorld.getAllPlayersInWorld().equals( mockPlayerList );
     }
 
@@ -102,7 +197,7 @@ public class SleepWorldTest
         World world = mock(World.class);
         when(world.getPlayers()).thenReturn( mockPlayerList );
 
-        SleepWorld sleepWorld = new SleepWorld(world, mockConfigContainer(), checker, mock(BPLogger.class));
+        SleepWorld sleepWorld = createSleepWorld(world, mockConfigContainer(), checker);
 
         List<Player> expectedList = new ArrayList<>();
         expectedList.add(p1);
@@ -112,12 +207,38 @@ public class SleepWorldTest
     }
 
     @Test
+    public void testRemoveSleeperClearsSleeperCounter()
+    {
+        UUID worldId = UUID.randomUUID();
+        World world = mockTimedWorld(13000);
+        when(world.getUID()).thenReturn(worldId);
+        when(world.getName()).thenReturn("world");
+
+        Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(player.getName()).thenReturn("Sleeper");
+        when(player.getWorld()).thenReturn(world);
+        when(player.isSleeping()).thenReturn(false);
+        when(player.isOnline()).thenReturn(true);
+
+        when(world.getPlayers()).thenReturn(new ArrayList<Player>() {{ add(player); }});
+
+        SleepWorld sleepWorld = createSleepWorld(world, mockConfigContainer(), mock(BypassChecker.class));
+        SleepWorldTicker ticker = new SleepWorldTicker(mockConfigContainer(), sleepWorld, new NoOpMessageDeliveryService(), mock(BPLogger.class));
+
+        ticker.addSleeper(player);
+        assertEquals(1, ticker.getSleepStatus().getNumSleepers());
+
+        ticker.removeSleeper(player);
+        assertEquals(0, ticker.getSleepStatus().getNumSleepers());
+    }
+
+    @Test
     public void testTimeChanging()
     {
-        World world = new WorldMock();
-        world.setTime(100);
+        World world = mockTimedWorld(100);
 
-        SleepWorld sleepWorld = new SleepWorld(world, mockConfigContainer(), mock(BypassChecker.class), mock(BPLogger.class));
+        SleepWorld sleepWorld = createSleepWorld(world, mockConfigContainer(), mock(BypassChecker.class));
 
         sleepWorld.addTime(56.3);
         assert world.getTime() == 156;
@@ -143,10 +264,9 @@ public class SleepWorldTest
     @Test
     public void testTimePassedDetection()
     {
-        World world = new WorldMock();
-        world.setTime(23500);
+        World world = mockTimedWorld(23500);
 
-        SleepWorld sleepWorld = new SleepWorld(world, mockConfigContainer(), mock(BypassChecker.class), mock(BPLogger.class));
+        SleepWorld sleepWorld = createSleepWorld(world, mockConfigContainer(), mock(BypassChecker.class));
 
         sleepWorld.addTime(500);
         assert sleepWorld.didTimeBecomeDay( 23500 );

@@ -1,6 +1,7 @@
 package be.betterplugins.bettersleeping;
 
 import be.betterplugins.bettersleeping.api.BetterSleepingAPI;
+import be.betterplugins.bettersleeping.commands.BetterSleepingCommandFacade;
 import be.betterplugins.bettersleeping.guice.BetterSleepingModule;
 import be.betterplugins.bettersleeping.guice.HooksModule;
 import be.betterplugins.bettersleeping.guice.StaticModule;
@@ -12,11 +13,9 @@ import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorldManager;
 import be.betterplugins.bettersleeping.model.world.WorldState;
 import be.betterplugins.bettersleeping.model.world.WorldStateHandler;
-import be.betterplugins.bettersleeping.runnables.BossBarRunnable;
-import be.betterplugins.bettersleeping.util.BStatsHandler;
+import be.betterplugins.bettersleeping.services.bossbar.BossBarService;
 import be.betterplugins.bettersleeping.util.FileLogger;
 import be.betterplugins.bettersleeping.util.migration.SettingsMigrator;
-import be.betterplugins.core.commands.BPCommandHandler;
 import be.betterplugins.core.interfaces.IReloadable;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import com.google.inject.Guice;
@@ -38,7 +37,7 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
 
     private BPLogger logger;
     private SleepWorldManager sleepWorldManager;
-    private BossBarRunnable bossBarRunnable;
+    private BossBarService bossBarService;
     private WorldStateHandler worldStateHandler;
     private AnimationHandler animationHandler;
 
@@ -91,17 +90,20 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         this.worldStateHandler.setWorldStates( new WorldState( false, 200 ));
 
         // Handle commands
-        BPCommandHandler commandHandler = injector.getInstance(BPCommandHandler.class);
-        getCommand("bettersleeping").setExecutor( commandHandler );
+        BetterSleepingCommandFacade commandFacade = injector.getInstance(BetterSleepingCommandFacade.class);
+        getCommand("bettersleeping").setExecutor(commandFacade);
+        getCommand("bettersleeping").setTabCompleter(commandFacade);
 
         // Register events
 
+        this.animationHandler = injector.getInstance(AnimationHandler.class);
         registerEvents(
+            this.worldStateHandler,
             injector.getInstance(BedEventListener.class),
             injector.getInstance(BuffsHandler.class),
             injector.getInstance(TimeSetToDayCounter.class),
             injector.getInstance(PhantomHandler.class),
-            injector.getInstance(AnimationHandler.class)
+            this.animationHandler
         );
 
         // Handle sleeping through a runnable
@@ -111,8 +113,9 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         boolean enableBossBar = config.getConfig().getBoolean("enable_bossbar");
         if (enableBossBar)
         {
-            this.bossBarRunnable = injector.getInstance(BossBarRunnable.class);
-            this.bossBarRunnable.runTaskTimer(this, 20L, 5L);
+            this.bossBarService = injector.getInstance(BossBarService.class);
+            registerEvents(this.bossBarService);
+            this.bossBarService.start(20L, 5L);
         }
 
         // Handle GSit events
@@ -141,11 +144,17 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         // Register the PAPI expansion
         if(Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null)
         {
-            injector.getInstance(PapiExpansion.class).register();
+            try
+            {
+                Class.forName("me.clip.placeholderapi.expansion.PlaceholderExpansion");
+                injector.getInstance(PapiExpansion.class).register();
+                logger.log(Level.CONFIG, "PlaceholderAPI hook enabled");
+            }
+            catch (ClassNotFoundException ignored)
+            {
+                logger.log(Level.WARNING, "PlaceholderAPI hook disabled: incompatible PlaceholderAPI version, expansion API class missing");
+            }
         }
-
-        // Enable bStats
-        injector.getInstance(BStatsHandler.class);
     }
 
     /**
@@ -188,10 +197,10 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         }
 
         // Stop handling bossbars
-        if (bossBarRunnable != null)
+        if (bossBarService != null)
         {
-            bossBarRunnable.stopBossBars();
-            bossBarRunnable = null;
+            bossBarService.stopBossBars();
+            bossBarService = null;
         }
 
         if (logger != null && logger instanceof FileLogger)

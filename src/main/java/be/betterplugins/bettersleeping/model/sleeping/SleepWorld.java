@@ -1,12 +1,14 @@
 package be.betterplugins.bettersleeping.model.sleeping;
 
+import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
+import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.bettersleeping.sleepersneeded.AbsoluteNeeded;
-import be.betterplugins.core.messaging.logging.BPLogger;
 import be.betterplugins.bettersleeping.sleepersneeded.ISleepersCalculator;
 import be.betterplugins.bettersleeping.sleepersneeded.PercentageNeeded;
-import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.util.TimeUtil;
+import be.betterplugins.core.messaging.logging.BPLogger;
+import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.World.Environment;
 import org.bukkit.entity.LivingEntity;
@@ -18,16 +20,18 @@ import java.util.stream.Collectors;
 public class SleepWorld
 {
 
-    private final World world;
-    private double time;
+    private final SleepWorldId worldId;
+    private final SleepWorldState state;
+    private final WorldAccessService worldAccess;
 
     private final ISleepersCalculator sleepersCalculator;
     private final BypassChecker bypassChecker;
 
-    public SleepWorld(World world, ConfigContainer config, BypassChecker bypassChecker, BPLogger logger)
+    public SleepWorld(World world, ConfigContainer config, BypassChecker bypassChecker, BPLogger logger, WorldAccessService worldAccess)
     {
-        this.world = world;
-        this.time = world.getTime();
+        this.worldAccess = worldAccess;
+        this.worldId = worldAccess.getId(world);
+        this.state = new SleepWorldState(world.getTime());
         this.bypassChecker = bypassChecker;
 
         String counterMode = config.getSleeping_settings().getString("sleeper_calculator");
@@ -35,6 +39,20 @@ public class SleepWorld
         sleepersCalculator = usePercentage ? new PercentageNeeded(config, logger) : new AbsoluteNeeded(config, logger);
     }
 
+    public SleepWorldId getWorldId()
+    {
+        return worldId;
+    }
+
+    public String getWorldName()
+    {
+        return worldId.getName();
+    }
+
+    public Location getSchedulingLocation()
+    {
+        return worldAccess.getSchedulingLocation(worldId);
+    }
 
     /**
      * Get all players that are in this world, regardless of whether they sleep/are bypassed
@@ -43,7 +61,7 @@ public class SleepWorld
      */
     public List<Player> getAllPlayersInWorld()
     {
-        return world.getPlayers().stream()
+        return worldAccess.getAllPlayersInWorld(worldId).stream()
                 .filter(this::isPlayerInValidEnvironment)
                 .collect(Collectors.toList());
     }
@@ -91,7 +109,7 @@ public class SleepWorld
      */
     public boolean isInWorld(Player player)
     {
-        return player.getWorld().getName().equals( this.world.getName() );
+        return worldAccess.isInWorld(worldId, player);
     }
 
 
@@ -100,10 +118,9 @@ public class SleepWorld
      */
     public void clearWeather()
     {
-        if (!world.isClearWeather())
+        if (!worldAccess.isClearWeather(worldId))
         {
-            world.setStorm(false);
-            world.setThundering(false);
+            worldAccess.clearWeather(worldId);
         }
     }
 
@@ -115,7 +132,7 @@ public class SleepWorld
      */
     public boolean isNight()
     {
-        return !TimeUtil.isDayTime( this.world );
+        return !TimeUtil.isDayTime( this.getWorld() );
     }
 
     /**
@@ -125,7 +142,7 @@ public class SleepWorld
      */
     public double getInternalTime()
     {
-        return this.time;
+        return this.state.getTime();
     }
 
 
@@ -136,7 +153,7 @@ public class SleepWorld
      */
     public long getWorldTime()
     {
-        return world.getTime();
+        return worldAccess.getTime(worldId);
     }
 
     /**
@@ -146,8 +163,8 @@ public class SleepWorld
      */
     public void setTime(double newTime)
     {
-        this.time = newTime % 24000;
-        world.setTime((long) this.time);
+        this.state.setTime(newTime);
+        worldAccess.setTime(worldId, (long) this.state.getTime());
     }
 
 
@@ -159,17 +176,8 @@ public class SleepWorld
      */
     public boolean addTime(double deltaTicks)
     {
-        assert deltaTicks >= 0;
-        this.time = this.time + deltaTicks;
-
-        boolean isNextDay = false;
-        if (this.time >= 24000)
-        {
-            isNextDay = true;
-            this.time = this.time % 24000;
-        }
-
-        world.setTime( (long) this.time );
+        boolean isNextDay = this.state.addTime(deltaTicks);
+        worldAccess.setTime(worldId, (long) this.state.getTime());
         return isNextDay;
     }
 
@@ -182,27 +190,26 @@ public class SleepWorld
      */
     public long calcPassedTime(final long sinceTicks)
     {
-        long currentTicks = this.world.getTime();
+        long currentTicks = this.getWorldTime();
         if (currentTicks >= sinceTicks)
         {
             return currentTicks - sinceTicks;
         }
         else
         {
-            return (24000 + currentTicks) - sinceTicks;
+            return (24000 - sinceTicks) + currentTicks;
         }
     }
 
-
     /**
-     * Check whether time became day between now and the given amount of ticks
+     * Check whether or not time has passed the morning time after sinceTicks
      *
-     * @param sinceTicks the time since when we are checking whether time became day
-     * @return whether or not the night was over during sinceTicks and now
+     * @param sinceTicks the time at which tracking started
+     * @return whether or not time has become morning during sinceTicks and now
      */
     public boolean didTimeBecomeDay(final long sinceTicks)
     {
-        return this.world.getTime() < sinceTicks;
+        return this.getWorldTime() < sinceTicks;
     }
 
     public int getNumNeeded()
@@ -220,6 +227,6 @@ public class SleepWorld
     @Deprecated
     public World getWorld()
     {
-        return this.world;
+        return worldAccess.getWorld(worldId);
     }
 }

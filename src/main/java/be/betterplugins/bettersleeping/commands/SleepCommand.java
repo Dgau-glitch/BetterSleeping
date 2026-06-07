@@ -1,6 +1,8 @@
 package be.betterplugins.bettersleeping.commands;
 
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorldManager;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
 import be.betterplugins.bettersleeping.util.TimeUtil;
 import be.betterplugins.core.commands.shortcuts.PlayerBPCommand;
 import be.betterplugins.core.messaging.messenger.Messenger;
@@ -16,11 +18,15 @@ public class SleepCommand extends PlayerBPCommand
 {
 
     private final SleepWorldManager sleepWorldManager;
+    private final PluginScheduler scheduler;
+    private final MessageDeliveryService messageDeliveryService;
 
-    public SleepCommand(Messenger messenger, SleepWorldManager sleepWorldManager)
+    public SleepCommand(Messenger messenger, SleepWorldManager sleepWorldManager, PluginScheduler scheduler, MessageDeliveryService messageDeliveryService)
     {
         super(messenger);
         this.sleepWorldManager = sleepWorldManager;
+        this.scheduler = scheduler;
+        this.messageDeliveryService = messageDeliveryService;
     }
 
     @Override
@@ -44,23 +50,28 @@ public class SleepCommand extends PlayerBPCommand
     @Override
     public boolean execute(@NotNull Player player, @NotNull Command command, @NotNull String[] strings)
     {
+        scheduler.runForEntity(player, () -> executeInEntityContext(player));
+        return true;
+    }
+
+    private void executeInEntityContext(Player player)
+    {
         World world = player.getWorld();
 
         // Make sure this world is enabled
-        if (!sleepWorldManager.isWorldEnabled( world ))
+        if (!sleepWorldManager.isWorldEnabled(world))
         {
-            messenger.sendMessage(player, "world_disabled");
-            return true;
+            messageDeliveryService.send(player, "world_disabled");
+            return;
         }
 
         // Make sure the time is right in the player's world
-        if (!TimeUtil.isSleepPossible( world ))
+        if (!TimeUtil.isSleepPossible(world))
         {
-            messenger.sendMessage(player, "command_sleep_notnight");
-            return true;
+            messageDeliveryService.send(player, "command_sleep_notnight");
+            return;
         }
 
-        sleepWorldManager.addSleeper( player );
-        return true;
+        sleepWorldManager.addSleeper(player);
     }
 }

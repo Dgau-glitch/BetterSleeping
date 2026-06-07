@@ -7,6 +7,12 @@ import be.betterplugins.bettersleeping.listeners.BuffsHandler;
 import be.betterplugins.bettersleeping.messaging.ScreenMessenger;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorldManager;
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
+import be.betterplugins.bettersleeping.services.messaging.FoliaMessageDeliveryService;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
+import be.betterplugins.bettersleeping.services.scheduler.FoliaPluginScheduler;
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
+import be.betterplugins.bettersleeping.services.world.FoliaWorldAccessService;
+import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.bettersleeping.util.FileLogger;
 import be.betterplugins.bettersleeping.util.Theme;
 import be.betterplugins.core.CoreFactory;
@@ -31,6 +37,14 @@ import java.util.logging.Level;
 
 public class BetterSleepingModule extends AbstractModule
 {
+
+    @Override
+    protected void configure()
+    {
+        bind(PluginScheduler.class).to(FoliaPluginScheduler.class);
+        bind(MessageDeliveryService.class).to(FoliaMessageDeliveryService.class);
+        bind(WorldAccessService.class).to(FoliaWorldAccessService.class);
+    }
 
     private final BetterSleeping plugin;
     private final Level logLevel;
@@ -62,7 +76,7 @@ public class BetterSleepingModule extends AbstractModule
 
     @Provides
     @Singleton
-    public Messenger provideMessenger(@Named("has_spigot") boolean hasSpigot, @Named("prefix") String prefix, JavaPlugin plugin, BetterLang lang, ConfigContainer configContainer, BPLogger logger)
+    public Messenger provideMessenger(@Named("has_spigot") boolean hasSpigot, @Named("prefix") String prefix, JavaPlugin plugin, PluginScheduler scheduler, BetterLang lang, ConfigContainer configContainer, BPLogger logger)
     {
         logger.log(Level.CONFIG, hasSpigot ? "This server is running on Spigot" : "This server is NOT running on Spigot");
 
@@ -73,7 +87,7 @@ public class BetterSleepingModule extends AbstractModule
         if (hasSpigot && sendOnScreen)
         {
             logger.log(Level.CONFIG, "Using on screen messaging");
-            messenger = new ScreenMessenger(plugin, lang.getMessages(), prefix, messengerLogger);
+            messenger = new ScreenMessenger(plugin, scheduler, lang.getMessages(), prefix, messengerLogger);
         }
         else
         {
@@ -86,7 +100,7 @@ public class BetterSleepingModule extends AbstractModule
 
     @Provides
     @Singleton
-    public BPCommandHandler provideCommandHandler(SleepWorldManager sleepWorldManager, @Named("prefix") String prefix, BuffsHandler buffsHandler, BypassChecker bypassChecker, Messenger messenger, Map<String, String> langMessages, BPLogger logger)
+    public BPCommandHandler provideCommandHandler(SleepWorldManager sleepWorldManager, PluginScheduler scheduler, MessageDeliveryService messageDeliveryService, @Named("prefix") String prefix, BuffsHandler buffsHandler, BypassChecker bypassChecker, Messenger messenger, Map<String, String> langMessages, BPLogger logger)
     {
         // Use a chatMessenger to override the instances where we never want to send messages on screen
         Messenger chatMessenger = new Messenger(langMessages, logger, prefix);
@@ -94,7 +108,7 @@ public class BetterSleepingModule extends AbstractModule
         HelpCommand     help    = new HelpCommand( chatMessenger );
         ReloadCommand   reload  = new ReloadCommand( plugin, chatMessenger );
         ShoutCommand    shout   = new ShoutCommand( messenger, sleepWorldManager );
-        SleepCommand    sleep   = new SleepCommand( messenger, sleepWorldManager );
+        SleepCommand    sleep   = new SleepCommand( messenger, sleepWorldManager, scheduler, messageDeliveryService );
         BuffsCommand    buffs   = new BuffsCommand( chatMessenger, buffsHandler, bypassChecker );
         StatusCommand   status = new StatusCommand( chatMessenger, sleepWorldManager );
         VersionCommand  version = new VersionCommand( plugin, chatMessenger );

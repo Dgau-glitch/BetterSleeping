@@ -1,51 +1,56 @@
 package be.betterplugins.bettersleeping.messaging;
 
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.Plugin;
-import org.bukkit.scheduler.BukkitRunnable;
+
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ScreenMessageSender
 {
 
     private static final long MESSAGE_DELAY = 3L * 20L;
 
-    private final Plugin plugin;
-    private final Player player;
+    private final PluginScheduler scheduler;
     private final Queue<String> messageQueue = new ConcurrentLinkedQueue<>();
 
-    public ScreenMessageSender(Plugin plugin, Player player)
+    public ScreenMessageSender(PluginScheduler scheduler)
     {
-        this.plugin = plugin;
-        this.player = player;
+        this.scheduler = scheduler;
     }
 
     /**
-     * Send a message on-screen to a player The server MUST be running Spigot!
-     * No checks will be performed.
+     * Send a message on-screen to a player. The actual player interaction is
+     * scheduled on the player's entity scheduler.
      *
+     * @param player the receiving player
      * @param message the raw message
      */
-    public void sendMessage(String message)
+    public void sendMessage(Player player, String message)
+    {
+        scheduler.runForEntity(player, () -> enqueueAndSend(player, message));
+    }
+
+    private void enqueueAndSend(Player player, String message)
     {
         synchronized (messageQueue)
         {
             messageQueue.add(message);
             if (messageQueue.size() == 1)
             {
-                sendMessage();
+                sendQueuedMessage(player);
             }
         }
     }
 
-    private void sendMessage()
+    private void sendQueuedMessage(Player player)
     {
         String message = messageQueue.peek();
+        if (message == null)
+            return;
 
         Player.Spigot p = player.spigot();
         BaseComponent bc = new TextComponent();
@@ -53,21 +58,16 @@ public class ScreenMessageSender
         ChatMessageType type = ChatMessageType.ACTION_BAR;
         p.sendMessage(type, bc);
 
-        new BukkitRunnable()
-        {
-            @Override
-            public void run()
+        scheduler.runForEntityLater(player, () -> {
+            synchronized (messageQueue)
             {
-                synchronized (messageQueue)
+                messageQueue.remove();
+                if (!messageQueue.isEmpty())
                 {
-                    messageQueue.remove();
-                    if (!messageQueue.isEmpty())
-                    {
-                        sendMessage();
-                    }
+                    sendQueuedMessage(player);
                 }
             }
-        }.runTaskLater(plugin, MESSAGE_DELAY);
+        }, MESSAGE_DELAY);
     }
 
 }

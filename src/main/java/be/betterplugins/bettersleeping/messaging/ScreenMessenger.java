@@ -1,11 +1,13 @@
 package be.betterplugins.bettersleeping.messaging;
 
+import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import be.betterplugins.core.messaging.messenger.Messenger;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -16,18 +18,16 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class ScreenMessenger extends Messenger
 {
 
-    private final JavaPlugin plugin;
-    private final Map<Player, ScreenMessageSender> playerMessengerMap = new ConcurrentHashMap<>();
+    private final PluginScheduler scheduler;
+    private final Map<UUID, ScreenMessageSender> playerMessengerMap = new ConcurrentHashMap<>();
 
-    public ScreenMessenger(JavaPlugin plugin, Map<String, String> messages, String prefix, BPLogger logger)
+    public ScreenMessenger(JavaPlugin plugin, PluginScheduler scheduler, Map<String, String> messages, String prefix, BPLogger logger)
     {
         super(messages, logger, prefix);
-        this.plugin = plugin;
+        this.scheduler = scheduler;
 
         // Register creation and deletion of messengers for every player
         plugin.getServer().getPluginManager().registerEvents(new PlayerQueueEventListener(), plugin);
-        // Create messenger for every player online (e.g. in case of reload)
-        plugin.getServer().getOnlinePlayers().forEach(player -> playerMessengerMap.put(player, new ScreenMessageSender(plugin, player)));
     }
 
     @Override
@@ -35,8 +35,12 @@ public class ScreenMessenger extends Messenger
     {
         if (receiver instanceof Player)
         {
-            ScreenMessageSender sender = playerMessengerMap.get( receiver );
-            sender.sendMessage(message);
+            Player player = (Player) receiver;
+            ScreenMessageSender sender = playerMessengerMap.computeIfAbsent(
+                    player.getUniqueId(),
+                    uuid -> new ScreenMessageSender(scheduler)
+            );
+            sender.sendMessage(player, message);
         }
         else
         {
@@ -56,14 +60,14 @@ public class ScreenMessenger extends Messenger
         public void onPlayerJoin(PlayerJoinEvent event)
         {
             // Create messenger for every player joining
-            playerMessengerMap.put(event.getPlayer(), new ScreenMessageSender(plugin, event.getPlayer()));
+            playerMessengerMap.put(event.getPlayer().getUniqueId(), new ScreenMessageSender(scheduler));
         }
 
         @EventHandler
-        public void onPlayerJoin(PlayerQuitEvent event)
+        public void onPlayerLeave(PlayerQuitEvent event)
         {
             // Remove messenger for every player leaving
-            playerMessengerMap.remove(event.getPlayer());
+            playerMessengerMap.remove(event.getPlayer().getUniqueId());
         }
     }
 

@@ -52,7 +52,8 @@ public class ConfigContainer
             .addOptionalSection("non_sleeper_commands");
 
         ValidationHandler hooksValidation = new ValidationHandler()
-                .addValidator("minimum_afk_time", new Min(-1));
+                .addValidator("minimum_afk_time", new Min(-1))
+                .setOptionalValue("disable_incompatible_hooks", true);
 
         ValidationHandler sleeping_settingsValidation = new ValidationHandler()
             .addValidator("sleeper_calculator", new ChainedValidator(

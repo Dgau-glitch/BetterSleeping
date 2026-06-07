@@ -2,3 +2,5 @@ essentials_afk_ignored: true
 minimum_afk_time: 60
 vanished_ignored: true
 enable_gsit_support: true
+# If true, BetterSleeping will disable optional hooks with incompatible runtime API classes instead of failing startup.
+disable_incompatible_hooks: true

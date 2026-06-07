@@ -8,20 +8,20 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Singleton
 public class PermissionsCache implements Listener
 {
 
-    Map<UUID, Map<String, Boolean>> permissionsCacheMap;
+    private final Map<UUID, Map<String, Boolean>> permissionsCacheMap;
 
     @Inject
     public PermissionsCache(JavaPlugin plugin)
     {
-        this.permissionsCacheMap = new HashMap<>();
+        this.permissionsCacheMap = new ConcurrentHashMap<>();
 
         // Argument may be null in unit tests
         if (plugin != null)
@@ -30,25 +30,12 @@ public class PermissionsCache implements Listener
 
     public boolean hasPermission(Player player, String permission)
     {
-        Map<String, Boolean> permissionMap = permissionsCacheMap.get(player.getUniqueId());
-
-        if (permissionMap == null)
-        {
-            permissionMap = new HashMap<>();
-        }
-
-        if (!permissionMap.containsKey(permission))
-        {
-            permissionMap.put(permission, player.hasPermission(permission));
-        }
-
-        permissionsCacheMap.put(player.getUniqueId(), permissionMap);
-
-        return permissionMap.get(permission);
+        Map<String, Boolean> permissionMap = permissionsCacheMap.computeIfAbsent(player.getUniqueId(), uuid -> new ConcurrentHashMap<>());
+        return permissionMap.computeIfAbsent(permission, player::hasPermission);
     }
 
     @EventHandler
-    public void onPlayerLeave (PlayerQuitEvent playerQuitEvent)
+    public void onPlayerLeave(PlayerQuitEvent playerQuitEvent)
     {
         this.permissionsCacheMap.remove(playerQuitEvent.getPlayer().getUniqueId());
     }
