@@ -151,6 +151,16 @@
         </resources>
 
         <plugins>
+            <!-- Keep Mockito stable on JDK 21 environments that disallow implicit self-attach. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <argLine>-Djdk.attach.allowAttachSelf=true -XX:+EnableDynamicAgentLoading</argLine>
+                </configuration>
+            </plugin>
+
             <!-- Shade runtime dependencies into BetterSleeping -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

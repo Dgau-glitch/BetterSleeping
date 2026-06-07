@@ -5,6 +5,7 @@ import be.betterplugins.core.messaging.messenger.Messenger;
 import be.betterplugins.core.messaging.messenger.MsgEntry;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -19,14 +20,19 @@ public class FoliaMessageDeliveryService implements MessageDeliveryService
 {
     private final Messenger messenger;
     private final PluginScheduler scheduler;
-    private final JavaPlugin plugin;
+    private final Server server;
 
     @Inject
     public FoliaMessageDeliveryService(Messenger messenger, PluginScheduler scheduler, JavaPlugin plugin)
     {
+        this(messenger, scheduler, plugin.getServer());
+    }
+
+    FoliaMessageDeliveryService(Messenger messenger, PluginScheduler scheduler, Server server)
+    {
         this.messenger = messenger;
         this.scheduler = scheduler;
-        this.plugin = plugin;
+        this.server = server;
     }
 
     @Override
@@ -47,7 +53,7 @@ public class FoliaMessageDeliveryService implements MessageDeliveryService
     public void send(UUID receiverId, String messageKey, MsgEntry... entries)
     {
         scheduler.runGlobal(() -> {
-            Player player = plugin.getServer().getPlayer(receiverId);
+            Player player = server.getPlayer(receiverId);
             if (player != null && player.isOnline())
                 send(player, messageKey, entries);
         });
