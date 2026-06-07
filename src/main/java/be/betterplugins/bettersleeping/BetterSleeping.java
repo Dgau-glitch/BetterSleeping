@@ -12,7 +12,7 @@ import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorldManager;
 import be.betterplugins.bettersleeping.model.world.WorldState;
 import be.betterplugins.bettersleeping.model.world.WorldStateHandler;
-import be.betterplugins.bettersleeping.runnables.BossBarRunnable;
+import be.betterplugins.bettersleeping.services.bossbar.BossBarService;
 import be.betterplugins.bettersleeping.util.BStatsHandler;
 import be.betterplugins.bettersleeping.util.FileLogger;
 import be.betterplugins.bettersleeping.util.migration.SettingsMigrator;
@@ -38,7 +38,7 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
 
     private BPLogger logger;
     private SleepWorldManager sleepWorldManager;
-    private BossBarRunnable bossBarRunnable;
+    private BossBarService bossBarService;
     private WorldStateHandler worldStateHandler;
     private AnimationHandler animationHandler;
 
@@ -111,8 +111,9 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         boolean enableBossBar = config.getConfig().getBoolean("enable_bossbar");
         if (enableBossBar)
         {
-            this.bossBarRunnable = injector.getInstance(BossBarRunnable.class);
-            this.bossBarRunnable.start(20L, 5L);
+            this.bossBarService = injector.getInstance(BossBarService.class);
+            registerEvents(this.bossBarService);
+            this.bossBarService.start(20L, 5L);
         }
 
         // Handle GSit events
@@ -188,10 +189,10 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         }
 
         // Stop handling bossbars
-        if (bossBarRunnable != null)
+        if (bossBarService != null)
         {
-            bossBarRunnable.stopBossBars();
-            bossBarRunnable = null;
+            bossBarService.stopBossBars();
+            bossBarService = null;
         }
 
         if (logger != null && logger instanceof FileLogger)

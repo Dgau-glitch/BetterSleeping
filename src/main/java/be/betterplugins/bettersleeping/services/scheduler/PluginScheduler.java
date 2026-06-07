@@ -20,6 +20,8 @@ public interface PluginScheduler
 
     TaskHandle runForEntity(Entity entity, Runnable task);
 
+    TaskHandle runForEntityLater(Entity entity, Runnable task, long delayTicks);
+
     TaskHandle repeatForEntity(Entity entity, Runnable task, long initialDelayTicks, long periodTicks);
 
     TaskHandle runAsync(Runnable task);

@@ -62,6 +62,12 @@ public class FoliaPluginScheduler implements PluginScheduler
     }
 
     @Override
+    public TaskHandle runForEntityLater(Entity entity, Runnable task, long delayTicks)
+    {
+        return wrapNullable(entity.getScheduler().runDelayed(plugin, scheduledTask -> task.run(), null, delayTicks));
+    }
+
+    @Override
     public TaskHandle repeatForEntity(Entity entity, Runnable task, long initialDelayTicks, long periodTicks)
     {
         return wrapNullable(entity.getScheduler().runAtFixedRate(plugin, scheduledTask -> task.run(), null, initialDelayTicks, periodTicks));

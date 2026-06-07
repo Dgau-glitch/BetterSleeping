@@ -28,6 +28,11 @@ public class TimeUtil
 
     public static boolean isDayTime(World world)
     {
-        return world.getTime() < TIME_NIGHT_START || world.getTime() >= TIME_NIGHT_END;
+        return isDayTime(world.getTime());
+    }
+
+    public static boolean isDayTime(long worldTime)
+    {
+        return worldTime < TIME_NIGHT_START || worldTime >= TIME_NIGHT_END;
     }
 }

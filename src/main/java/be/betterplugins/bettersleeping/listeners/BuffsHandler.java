@@ -3,8 +3,8 @@ package be.betterplugins.bettersleeping.listeners;
 import be.betterplugins.bettersleeping.api.BecomeDayEvent;
 import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
 import be.betterplugins.core.messaging.logging.BPLogger;
-import be.betterplugins.core.messaging.messenger.Messenger;
 import be.betterplugins.core.messaging.messenger.MsgEntry;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
@@ -29,7 +29,7 @@ public class BuffsHandler implements Listener {
 
 
     private final BPLogger logger;
-    private final Messenger messenger;
+    private final MessageDeliveryService messageDeliveryService;
     private final BypassChecker bypassChecker;
 
     private final Set<PotionEffect> sleepingBuffs;
@@ -43,10 +43,10 @@ public class BuffsHandler implements Listener {
      * Event handler for {@link be.betterplugins.bettersleeping.api.BecomeDayEvent}
      */
     @Inject
-    public BuffsHandler(BPLogger logger, Messenger messenger, BypassChecker bypassChecker, ConfigContainer config)
+    public BuffsHandler(BPLogger logger, MessageDeliveryService messageDeliveryService, BypassChecker bypassChecker, ConfigContainer config)
     {
         this.logger = logger;
-        this.messenger = messenger;
+        this.messageDeliveryService = messageDeliveryService;
         this.bypassChecker = bypassChecker;
 
         YamlConfiguration buffsConfig = config.getBuffs();
@@ -78,7 +78,7 @@ public class BuffsHandler implements Listener {
 
         if (sleepingBuffs.size() > 0)
         {
-            messenger.sendMessage(
+            messageDeliveryService.send(
                     event.getPlayersWhoSlept(),
                     "buff_received",
                     new MsgEntry("<var>", "" + sleepingBuffs.size())
@@ -95,7 +95,7 @@ public class BuffsHandler implements Listener {
                     nonSleepers.add( player );
             }
 
-            messenger.sendMessage(
+            messageDeliveryService.send(
                     nonSleepers,
                     "debuff_received",
                     new MsgEntry("<var>", "" + sleepingDebuffs.size())

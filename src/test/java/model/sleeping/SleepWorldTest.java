@@ -3,21 +3,27 @@ package model.sleeping;
 import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorld;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorldId;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
+import be.betterplugins.bettersleeping.services.sleeping.SleepWorldTicker;
 import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import org.bukkit.Location;
+import org.bukkit.command.CommandSender;
 import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
 public class SleepWorldTest
@@ -44,6 +50,25 @@ public class SleepWorldTest
     public SleepWorld createSleepWorld(World world, ConfigContainer config, BypassChecker bypassChecker)
     {
         return new SleepWorld(world, config, bypassChecker, mock(BPLogger.class), new TestWorldAccessService(world));
+    }
+
+
+    private static class NoOpMessageDeliveryService implements MessageDeliveryService
+    {
+        @Override
+        public void send(CommandSender receiver, String messageKey, be.betterplugins.core.messaging.messenger.MsgEntry... entries)
+        {
+        }
+
+        @Override
+        public void send(UUID receiverId, String messageKey, be.betterplugins.core.messaging.messenger.MsgEntry... entries)
+        {
+        }
+
+        @Override
+        public void send(Collection<Player> receivers, String messageKey, be.betterplugins.core.messaging.messenger.MsgEntry... entries)
+        {
+        }
     }
 
     private static class TestWorldAccessService implements WorldAccessService
@@ -179,6 +204,33 @@ public class SleepWorldTest
         expectedList.add(p3);
 
         assert sleepWorld.getValidPlayersInWorld().equals( expectedList );
+    }
+
+    @Test
+    public void testRemoveSleeperClearsSleeperCounter()
+    {
+        UUID worldId = UUID.randomUUID();
+        World world = mockTimedWorld(13000);
+        when(world.getUID()).thenReturn(worldId);
+        when(world.getName()).thenReturn("world");
+
+        Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(player.getName()).thenReturn("Sleeper");
+        when(player.getWorld()).thenReturn(world);
+        when(player.isSleeping()).thenReturn(false);
+        when(player.isOnline()).thenReturn(true);
+
+        when(world.getPlayers()).thenReturn(new ArrayList<Player>() {{ add(player); }});
+
+        SleepWorld sleepWorld = createSleepWorld(world, mockConfigContainer(), mock(BypassChecker.class));
+        SleepWorldTicker ticker = new SleepWorldTicker(mockConfigContainer(), sleepWorld, new NoOpMessageDeliveryService(), mock(BPLogger.class));
+
+        ticker.addSleeper(player);
+        assertEquals(1, ticker.getSleepStatus().getNumSleepers());
+
+        ticker.removeSleeper(player);
+        assertEquals(0, ticker.getSleepStatus().getNumSleepers());
     }
 
     @Test

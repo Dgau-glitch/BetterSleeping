@@ -5,9 +5,9 @@ import be.betterplugins.bettersleeping.api.BecomeDayEvent.Cause;
 import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.SleepStatus;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorld;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
 import be.betterplugins.bettersleeping.util.TimeUtil;
 import be.betterplugins.core.messaging.logging.BPLogger;
-import be.betterplugins.core.messaging.messenger.Messenger;
 import be.betterplugins.core.messaging.messenger.MsgEntry;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -16,7 +16,6 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -24,7 +23,7 @@ import java.util.stream.Collectors;
 
 public class SleepWorldTicker
 {
-    private final Messenger messenger;
+    private final MessageDeliveryService messageDeliveryService;
 
     private final SleepWorld sleepWorld;
     private final Set<UUID> sleepers;
@@ -36,9 +35,9 @@ public class SleepWorldTicker
     private TimeState timeState;
     private boolean isSkipping;
 
-    public SleepWorldTicker(ConfigContainer config, SleepWorld sleepWorld, Messenger messenger, BPLogger logger)
+    public SleepWorldTicker(ConfigContainer config, SleepWorld sleepWorld, MessageDeliveryService messageDeliveryService, BPLogger logger)
     {
-        this.messenger = messenger;
+        this.messageDeliveryService = messageDeliveryService;
 
         this.sleepWorld = sleepWorld;
         this.sleepers = new HashSet<>();
@@ -89,7 +88,7 @@ public class SleepWorldTicker
             sleepers.add(sleeper.getUniqueId());
 
             SleepStatus sleepStatus = getSleepStatus();
-            this.messenger.sendMessage(players, "bed_enter_broadcast",
+            this.messageDeliveryService.send(players, "bed_enter_broadcast",
                     new MsgEntry("<num_sleeping>", sleepStatus.getNumSleepers()),
                     new MsgEntry("<needed_sleeping>", sleepStatus.getNumNeeded()),
                     new MsgEntry("<remaining_sleeping>", sleepStatus.getNumMissing()),
@@ -105,7 +104,17 @@ public class SleepWorldTicker
      */
     public void removeSleeper(Player player)
     {
-        sleepers.remove( player.getUniqueId() );
+        removeSleeper(player.getUniqueId());
+    }
+
+    /**
+     * Mark a player as no longer sleeping by stable player id.
+     *
+     * @param playerId the relevant player id
+     */
+    public void removeSleeper(UUID playerId)
+    {
+        sleepers.remove(playerId);
     }
 
 
@@ -135,18 +144,26 @@ public class SleepWorldTicker
         );
     }
 
-    /**
-     * Check whether a player should still be counted as a sleeping player
-     *
-     * @param uuid the UUID of the player to be checked
-     * @return True if the player is no longer in the right world or the player is offline. False otherwise
-     */
-    private boolean isNotValidSleeper(UUID uuid)
+    private List<Player> getOnlinePlayersInManagedWorld()
     {
-        Player player = Bukkit.getPlayer( uuid );
-        return !(player != null && player.isOnline() && this.sleepWorld.isInWorld( player ));
+        return this.sleepWorld.getAllPlayersInWorld().stream()
+                .filter(Player::isOnline)
+                .collect(Collectors.toList());
     }
 
+    private void retainValidSleepers(List<Player> playersInWorld)
+    {
+        Set<UUID> validPlayerIds = playersInWorld.stream()
+                .map(Player::getUniqueId)
+                .collect(Collectors.toSet());
+        this.sleepers.retainAll(validPlayerIds);
+    }
+
+
+    public boolean isDayTime()
+    {
+        return TimeUtil.isDayTime(this.sleepWorld.getWorldTime());
+    }
 
     private double calcSpeedup()
     {
@@ -166,8 +183,8 @@ public class SleepWorldTicker
 
     public void tick()
     {
-        // Remove invalid sleepers
-        this.sleepers.removeIf(this::isNotValidSleeper);
+        List<Player> playersInWorld = getOnlinePlayersInManagedWorld();
+        retainValidSleepers(playersInWorld);
 
         // Calculate the amounts
         int numSleepers = sleepers.size();
@@ -180,7 +197,7 @@ public class SleepWorldTicker
             if (numSleepers >= numNeeded && numSleepers > 0)
             {
                 this.isSkipping = true;
-                messenger.sendMessage(sleepWorld.getAllPlayersInWorld(), "enough_sleeping");
+                messageDeliveryService.send(playersInWorld, "enough_sleeping");
             }
 
             // Handle proceeding to a next time state
@@ -191,10 +208,10 @@ public class SleepWorldTicker
                 switch (nextState)
                 {
                     case CAN_SLEEP_SOON:
-                        messenger.sendMessage(sleepWorld.getAllPlayersInWorld(), "sleep_possible_soon");
+                        messageDeliveryService.send(playersInWorld, "sleep_possible_soon");
                         break;
                     case CAN_SLEEP:
-                        messenger.sendMessage(sleepWorld.getAllPlayersInWorld(), "sleep_possible_now");
+                        messageDeliveryService.send(playersInWorld, "sleep_possible_now");
                         break;
                     case CANNOT_SLEEP:
                     default:
@@ -222,8 +239,8 @@ public class SleepWorldTicker
 
         if (isNightSkipped)
         {
-            messenger.sendMessage(
-                    new ArrayList<>(sleepWorld.getAllPlayersInWorld()),
+            messageDeliveryService.send(
+                    new ArrayList<>(playersInWorld),
                     "morning_message",
                     new MsgEntry("<num>", numSleepers)
             );
@@ -233,13 +250,12 @@ public class SleepWorldTicker
             final Cause cause = isSkipping ? Cause.SLEEPING : Cause.NATURAL;
 
             // Find all players that slept
-            final List<Player> restedPlayers = this.sleepers.stream()
-                    .map(Bukkit::getPlayer)
-                    .filter(Objects::nonNull)
+            final List<Player> restedPlayers = playersInWorld.stream()
+                    .filter(player -> this.sleepers.contains(player.getUniqueId()))
                     .collect(Collectors.toList());
 
             // Get all players that did not sleep
-            final List<Player> tiredPlayers = sleepWorld.getAllPlayersInWorld();
+            final List<Player> tiredPlayers = new ArrayList<>(playersInWorld);
             tiredPlayers.removeIf(player -> this.sleepers.contains( player.getUniqueId() ));
 
             BecomeDayEvent event = new BecomeDayEvent(sleepWorld.getWorld(), cause, restedPlayers, tiredPlayers);

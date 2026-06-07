@@ -2,11 +2,10 @@ package be.betterplugins.bettersleeping.listeners;
 
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
 import be.betterplugins.bettersleeping.model.ConfigContainer;
-import be.betterplugins.bettersleeping.model.SleepStatus;
 import be.betterplugins.bettersleeping.model.sleeping.SleepWorldManager;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
 import be.betterplugins.bettersleeping.util.TimeUtil;
 import be.betterplugins.core.messaging.logging.BPLogger;
-import be.betterplugins.core.messaging.messenger.Messenger;
 import be.betterplugins.core.messaging.messenger.MsgEntry;
 import com.google.inject.Inject;
 import org.bukkit.entity.Player;
@@ -34,20 +33,20 @@ public class BedEventListener implements Listener
 
     private final SleepWorldManager sleepWorldManager;
     private final BypassChecker bypassChecker;
-    private final Messenger messenger;
+    private final MessageDeliveryService messageDeliveryService;
     private final BPLogger logger;
 
     private final Set<BedEnterResult> blacklistedResults;
 
     @Inject
-    public BedEventListener(SleepWorldManager sleepWorldManager, ConfigContainer container, BypassChecker bypassChecker, Messenger messenger, BPLogger logger)
+    public BedEventListener(SleepWorldManager sleepWorldManager, ConfigContainer container, BypassChecker bypassChecker, MessageDeliveryService messageDeliveryService, BPLogger logger)
     {
         this.cooldownMs = 1000 * container.getSleeping_settings().getInt("bed_enter_cooldown");
         this.lastBedEnterMap = new HashMap<>();
 
         this.sleepWorldManager = sleepWorldManager;
         this.bypassChecker = bypassChecker;
-        this.messenger = messenger;
+        this.messageDeliveryService = messageDeliveryService;
         this.logger = logger;
 
         this.blacklistedResults = new HashSet<BedEnterResult>()
@@ -99,7 +98,7 @@ public class BedEventListener implements Listener
         Player player = event.getPlayer();
         if (!canPlayerSleep(player))
         {
-            messenger.sendMessage(player, "sleep_spam",
+            messageDeliveryService.send(player, "sleep_spam",
                     new MsgEntry("<time>", Math.round(calcRemainingCooldown(player) / 1000.0)));
             event.setUseBed(Event.Result.DENY);
             return;
@@ -115,20 +114,17 @@ public class BedEventListener implements Listener
         // Notify bypassed players
         if ( bypassChecker.isPlayerBypassed( player ) )
         {
-            messenger.sendMessage(player, "bypass_message", new MsgEntry("<player>", player.getName()));
+            messageDeliveryService.send(player, "bypass_message", new MsgEntry("<player>", player.getName()));
         }
 
         logger.log(Level.FINE, "Player " + event.getPlayer().getName() + " entered their bed");
 
         lastBedEnterMap.put( player.getUniqueId(), System.currentTimeMillis() );
-        sleepWorldManager.addSleeper( player );
-        SleepStatus sleepStatus = sleepWorldManager.getSleepStatus( player.getWorld() );
-        if (sleepStatus != null)
-            messenger.sendMessage(player, "bed_enter_message",
-                    new MsgEntry("<num_sleeping>", sleepStatus.getNumSleepers()),
-                    new MsgEntry("<needed_sleeping>", sleepStatus.getNumNeeded()),
-                    new MsgEntry("<remaining_sleeping>", sleepStatus.getNumMissing()),
-                    new MsgEntry("<player>", player.getName()));
+        sleepWorldManager.addSleeper(player, sleepStatus -> messageDeliveryService.send(player, "bed_enter_message",
+                new MsgEntry("<num_sleeping>", sleepStatus.getNumSleepers()),
+                new MsgEntry("<needed_sleeping>", sleepStatus.getNumNeeded()),
+                new MsgEntry("<remaining_sleeping>", sleepStatus.getNumMissing()),
+                new MsgEntry("<player>", player.getName())));
     }
 
     private long calcRemainingCooldown(Player player)
@@ -156,7 +152,9 @@ public class BedEventListener implements Listener
     @EventHandler
     public void onPlayerLeave(PlayerQuitEvent event)
     {
-        lastBedEnterMap.remove( event.getPlayer().getUniqueId() );
+        Player player = event.getPlayer();
+        lastBedEnterMap.remove(player.getUniqueId());
+        sleepWorldManager.removeSleeper(player.getWorld().getName(), player.getUniqueId());
     }
 
 }

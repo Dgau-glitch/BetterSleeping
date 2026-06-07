@@ -4,12 +4,12 @@ import be.betterplugins.bettersleeping.listeners.AnimationHandler;
 import be.betterplugins.bettersleeping.model.ConfigContainer;
 import be.betterplugins.bettersleeping.model.SleepStatus;
 import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
 import be.betterplugins.bettersleeping.services.scheduler.PluginScheduler;
 import be.betterplugins.bettersleeping.services.scheduler.TaskHandle;
 import be.betterplugins.bettersleeping.services.sleeping.SleepWorldTicker;
 import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.core.messaging.logging.BPLogger;
-import be.betterplugins.core.messaging.messenger.Messenger;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import org.bukkit.GameRule;
@@ -21,6 +21,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 
 @Singleton
@@ -29,14 +31,16 @@ public class SleepWorldManager
 
     private final Map<String, ManagedSleepWorld> sleepWorlds;
     private final AnimationHandler animationHandler;
+    private final PluginScheduler scheduler;
 
     @Inject
-    public SleepWorldManager(List<World> allWorlds, ConfigContainer config, BypassChecker bypassChecker, Messenger messenger, AnimationHandler animationHandler, PluginScheduler scheduler, WorldAccessService worldAccess, BPLogger logger)
+    public SleepWorldManager(List<World> allWorlds, ConfigContainer config, BypassChecker bypassChecker, MessageDeliveryService messageDeliveryService, AnimationHandler animationHandler, PluginScheduler scheduler, WorldAccessService worldAccess, BPLogger logger)
     {
         YamlConfiguration sleepingSettings = config.getSleeping_settings();
         this.sleepWorlds = new HashMap<>();
 
         this.animationHandler = animationHandler;
+        this.scheduler = scheduler;
 
         for (World world : allWorlds)
         {
@@ -59,7 +63,7 @@ public class SleepWorldManager
                 logger.log(Level.CONFIG, "Enabling BetterSleeping in world " + world.getName());
 
                 SleepWorld sleepWorld = new SleepWorld(world, config, bypassChecker, logger, worldAccess);
-                SleepWorldTicker ticker = new SleepWorldTicker(config, sleepWorld, messenger, logger);
+                SleepWorldTicker ticker = new SleepWorldTicker(config, sleepWorld, messageDeliveryService, logger);
                 TaskHandle taskHandle = scheduler.repeatAtLocation(sleepWorld.getSchedulingLocation(), ticker::tick, 1L, 1L);
 
                 this.sleepWorlds.put(sleepWorld.getWorldName(), new ManagedSleepWorld(ticker, taskHandle));
@@ -80,7 +84,12 @@ public class SleepWorldManager
      */
     public @Nullable SleepStatus getSleepStatus(World world)
     {
-        ManagedSleepWorld managedWorld = this.sleepWorlds.get(world.getName());
+        return getSleepStatus(world.getName());
+    }
+
+    public @Nullable SleepStatus getSleepStatus(String worldName)
+    {
+        ManagedSleepWorld managedWorld = this.sleepWorlds.get(worldName);
         return managedWorld != null ? managedWorld.ticker.getSleepStatus() : null;
     }
 
@@ -93,7 +102,18 @@ public class SleepWorldManager
      */
     public boolean isWorldEnabled(World world)
     {
-        return sleepWorlds.containsKey( world.getName() );
+        return isWorldEnabled(world.getName());
+    }
+
+    public boolean isWorldEnabled(String worldName)
+    {
+        return sleepWorlds.containsKey( worldName );
+    }
+
+    public boolean isDayTime(String worldName)
+    {
+        ManagedSleepWorld managedWorld = this.sleepWorlds.get(worldName);
+        return managedWorld == null || managedWorld.ticker.isDayTime();
     }
 
     /**
@@ -103,11 +123,22 @@ public class SleepWorldManager
      */
     public void addSleeper(Player player)
     {
+        addSleeper(player, sleepStatus -> { });
+    }
+
+    public void addSleeper(Player player, Consumer<SleepStatus> afterAdd)
+    {
+        scheduler.runForEntity(player, () -> addSleeperInEntityContext(player, afterAdd));
+    }
+
+    private void addSleeperInEntityContext(Player player, Consumer<SleepStatus> afterAdd)
+    {
         ManagedSleepWorld managedWorld = sleepWorlds.get( player.getWorld().getName() );
         if (managedWorld != null)
         {
             managedWorld.ticker.addSleeper(player);
             this.animationHandler.startSleepingAnimation( player );
+            afterAdd.accept(managedWorld.ticker.getSleepStatus());
         }
     }
 
@@ -119,9 +150,19 @@ public class SleepWorldManager
      */
     public void removeSleeper(Player player)
     {
-        ManagedSleepWorld managedWorld = sleepWorlds.get( player.getWorld().getName() );
+        scheduler.runForEntity(player, () -> removeSleeperInEntityContext(player));
+    }
+
+    private void removeSleeperInEntityContext(Player player)
+    {
+        removeSleeper(player.getWorld().getName(), player.getUniqueId());
+    }
+
+    public void removeSleeper(String worldName, UUID playerId)
+    {
+        ManagedSleepWorld managedWorld = sleepWorlds.get(worldName);
         if (managedWorld != null)
-            managedWorld.ticker.removeSleeper( player );
+            managedWorld.ticker.removeSleeper(playerId);
     }
 
 
