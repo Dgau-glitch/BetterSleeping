@@ -1,48 +1,92 @@
-# BetterSleeping (200.000+ downloads) ![Build status](https://github.com/Nuytemans-Dieter/BetterSleeping/workflows/Java%20CI%20with%20Maven/badge.svg?branch=v3.0.0)
-This repository contains the source code of the **free** version of BetterSleeping. It is a Spigot plugin that will make sleeping on servers less of a hassle. Useful links: 
+# BetterSleeping
 
-- More information can be found on the [(free) Spigot plugin page](https://www.spigotmc.org/resources/bettersleeping-1-12-1-13.60837/ "BetterSleeping's plugin page"). Additional places to download the free version are the [PaperMC forums](https://papermc.io/forums/t/1-13-1-15-bettersleeping/3675), [GitHub releases](https://github.com/Nuytemans-Dieter/BetterSleeping/releases) and [Bukkit](https://dev.bukkit.org/projects/bettersleeping-1-13-1-15).
- - For a setup/configuration guide, please visit our [wiki](https://github.com/Nuytemans-Dieter/BetterSleeping/wiki)
- - Get the premium version on [Spigot](https://www.spigotmc.org/resources/bettersleeping-premium-1-13-1-15.78951/) (Spigot account required).
+BetterSleeping is a Minecraft sleep-management plugin for modern Folia servers. It lets a configurable part of the players in a world speed up or skip the night, while keeping messages, bossbars, buffs/debuffs and integrations region-aware for Folia's threaded world model.
 
-Servers using v3:
-![BetterSleeping stats graph](https://bstats.org/signatures/bukkit/BetterSleeping.svg)
+Useful links:
 
-Check out BetterSleeping's [full stats](https://bstats.org/plugin/bukkit/BetterSleeping/7414)!
+- Setup/configuration guide: [project wiki](https://github.com/Nuytemans-Dieter/BetterSleeping/wiki)
+- Releases: [GitHub releases](https://github.com/Nuytemans-Dieter/BetterSleeping/releases)
+- Metrics: [bStats](https://bstats.org/plugin/bukkit/BetterSleeping/7414)
+
+## Supported platform
+
+| Component | Supported baseline |
+| :-- | :-- |
+| Server API | Folia API `1.21.11-R0.1-SNAPSHOT` |
+| Minecraft server family | Folia/Paper 1.21.x, with Folia as the primary target |
+| Java runtime | Java 21 |
+| Plugin API version | `api-version: "1.21"` |
+
+Older Spigot/Paper-only runtimes are no longer the target of this branch. The codebase uses Folia schedulers and must be compiled and tested against the Folia API.
 
 ## What this plugin does
-Usually all players must sleep before a night/storm can be skipped on a multiplayer server.
-BetterSleeping allows this to be skipped when a given percentage of players is sleeping.
-Quite extensive configuration is included to suit your needs. The configuration includes, but is not limited to:
- - Set the night skip mode: will **time pass faster** or will it be set to day?
- - Set a **percentage** of players that must sleep to skip the night, or choose to set a **static amount** that must sleep
- - All messages can be **customised** in lang.yml, and by default several languages are supported (English, French, German, Dutch, Spanish, Portuguese, ...). [Full list here](https://github.com/Nuytemans-Dieter/BetterSleeping/tree/v3.0.0/src/main/resources/lang)
- - Give players **buffs** (potion effects) for sleeping or **debuffs** for not sleeping!
- - **Disable phantoms**
- - Display **messages on screen** instead of in the chat
- - ... And **so much more**! Check the [wiki](https://github.com/Nuytemans-Dieter/BetterSleeping/wiki) to see all options. 
 
-## Tested Spigot versions
-This plugin is functional and has been tested on several Spigot versions. Bukkit should be compatible too but no extensive testing has been done. 
-You can see the **latest** and **tested** BetterSleeping version for every supported Spigot version in the table below. 
-Newer updates than the mentioned BetterSleeping versions will probably be fully compatible but have not been tested (yet). 
-Previous versions of BetterSleeping can be found under [Releases](https://github.com/Nuytemans-Dieter/BetterSleeping/releases).
+Usually all players must sleep before a night or storm can be skipped on a multiplayer server. BetterSleeping allows this to be skipped when a configured percentage or fixed amount of players is sleeping.
 
-| Spigot | BetterSleeping |
-| :----: | :------------: |
-| 1.12   | [3.0.4 download **only here**](https://github.com/Nuytemans-Dieter/BetterSleeping/releases)|
-| 1.13   | 3.0.4          |
-| 1.14   | 3.0.4          |
-| 1.15   | 3.0.4          |
-| 1.16   | 3.0.6          |
-| 1.17   | 4.0.2          |
-| 1.18   | 4.0.2          |
-| 1.19   | 4.0.2 (or newer) |
+Configuration includes, but is not limited to:
 
-## How to contribute
-Sometimes people ask how they can help, there is a lot you can do.
-- Leaving a review on the [Spigot plugin page](https://www.spigotmc.org/resources/bettersleeping-1-12-1-15.60837/) helps a ton! You'd make me happy and help future visitors make the right decision.
-- Grab the [premium version](https://www.spigotmc.org/resources/bettersleeping-premium-1-13-1-15.78951/)
-- Starring this repository is much appreciated (on the top right of this screen)
-- You can make a suggestion (eg. a new feature). Join the [Discord server](https://discord.gg/AS46VGT) to let me know or create a [new issue](https://github.com/Nuytemans-Dieter/BetterSleeping/issues)!
-- If you know how to code, feel free to make a pull request and add your feature on your own!
+- Set whether night skip is accelerated or naturally reaches day.
+- Configure percentage-based or absolute sleeper requirements.
+- Customize messages and translations.
+- Give players buffs for sleeping and debuffs for not sleeping.
+- Disable phantom spawning.
+- Show chat/actionbar/title messages and bossbar progress.
+- Disable BetterSleeping per world without changing the user-facing config format.
+
+## Optional hooks
+
+| Hook | Purpose | Folia notes |
+| :-- | :-- | :-- |
+| PlaceholderAPI | Provides `%bettersleeping_*%` placeholders. | Placeholder calculation uses cached world/sleep snapshots and does not scan live worlds from arbitrary contexts. |
+| EssentialsX | AFK/vanish checks for bypass logic. | Player-specific Essentials calls must run from the player's entity scheduler context. Incompatible Essentials runtime classes disable the hook with a warning. |
+| GSit | Counts GSit sleeping/lying poses as sleepers when configured. | Pose and sleeper-state changes are scheduled through the player entity scheduler. Incompatible GSit versions are disabled with a warning. |
+| bStats | Anonymous usage metrics. | Charts use config/startup snapshots and avoid Bukkit entity/world access in library-managed callbacks. |
+
+## Known limitations
+
+- Folia region ownership is strict: plugin code must not mutate a `World`, `Entity`, `Player`, bossbar membership, particles, or player messages from an arbitrary thread/context.
+- Shutdown is special: Folia does not allow new scheduler tasks once plugin/server shutdown has started. Disable/reload cleanup must cancel tracked tasks and perform unavoidable restoration synchronously without creating new tasks.
+- Public API compatibility getters that return live Bukkit objects are deprecated for Folia consumers. Use snapshot DTOs where available and schedule your own mutations in the correct Folia context.
+- MockBukkit does not fully model Folia schedulers, so most tests use pure unit tests and `FakePluginScheduler` instead of a Bukkit runtime.
+
+## Developer guide
+
+### Scheduler ownership
+
+Use `PluginScheduler` as the only scheduling entry point in BetterSleeping code:
+
+- `runGlobal` / `repeatGlobal` for global server state or console command dispatch.
+- `runAtLocation` / `repeatAtLocation` for world or location-owned operations.
+- `runForEntity` / `runForEntityLater` / `repeatForEntity` for player/entity reads and mutations.
+- `runAsync` / `repeatAsync` only for pure computation without Bukkit `World`, `Entity`, or `Player` access.
+
+Do not add direct usages of `Bukkit.getScheduler()`, `BukkitRunnable`, `runTask*`, `entity.getScheduler()`, `server.getRegionScheduler()`, or `server.getGlobalRegionScheduler()` outside the scheduler adapter layer.
+
+### Shutdown/reload rules
+
+- Do not create new scheduled tasks from `onDisable()`, shutdown hooks, or code called after plugin disable starts.
+- Cleanup methods called from disable/reload should cancel tracked `TaskHandle`s first.
+- If state must be restored during disable, perform the minimal restoration immediately and do not enqueue it on Folia schedulers.
+
+### Commands and tab-completion
+
+All commands are registered through `BetterSleepingCommandFacade`:
+
+- Every subcommand must define its permission and aliases in the facade descriptor list.
+- `onTabComplete` must check subcommand permission before building any suggestions.
+- Argument completers must return no suggestions when the sender lacks permission for the owning subcommand.
+- Add unit tests whenever a new subcommand or contextual completer is added.
+
+### Public API usage
+
+`BecomeDayEvent` exposes immutable snapshot data for Folia-safe integrations. External plugins should read IDs/names/world keys from the snapshot and then schedule any Bukkit mutations through Folia's entity or region schedulers.
+
+## Build and test
+
+```bash
+mvn test
+mvn -DskipTests package
+rg "BukkitRunnable|Bukkit.getScheduler\(|runTask" src/main/java
+```
+
+The static `rg` command should produce no output except for explicitly documented compatibility/adapters.

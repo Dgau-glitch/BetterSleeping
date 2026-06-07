@@ -32,13 +32,24 @@ public class WorldStateHandler implements Listener
     @Inject
     public WorldStateHandler(List<World> worlds, PluginScheduler scheduler, WorldAccessService worldAccessService, BPLogger logger)
     {
+        this(scheduler, worldAccessService, logger);
+        for (World world : worlds)
+            captureOriginalState(world);
+    }
+
+    WorldStateHandler(Map<SleepWorldId, WorldState> originalStates, PluginScheduler scheduler, WorldAccessService worldAccessService, BPLogger logger)
+    {
+        this(scheduler, worldAccessService, logger);
+        this.worldWorldStateMap.putAll(originalStates);
+    }
+
+    private WorldStateHandler(PluginScheduler scheduler, WorldAccessService worldAccessService, BPLogger logger)
+    {
         this.scheduler = scheduler;
         this.worldAccessService = worldAccessService;
         this.logger = logger;
         this.worldWorldStateMap = new ConcurrentHashMap<>();
         this.trackedTasks = new CopyOnWriteArrayList<>();
-        for (World world : worlds)
-            captureOriginalState(world);
     }
 
     /**
@@ -53,13 +64,18 @@ public class WorldStateHandler implements Listener
 
     /**
      * Revert all temporary changes to their original value.
+     *
+     * <p>This method is called from plugin disable/reload. Folia does not allow
+     * new scheduler tasks to be created once shutdown/disable has started, so
+     * restoration is performed immediately and no scheduler API is used here.</p>
      */
     public void revertWorldStates()
     {
         this.currentTemporaryState = null;
-        logger.log(Level.FINE, "Scheduling original world-state restoration for " + worldWorldStateMap.size() + " world(s); if the server shuts down before Folia runs these tasks, restoration may be skipped by the server scheduler.");
+        cancelTrackedTasks();
+        logger.log(Level.FINE, "Restoring original world state immediately for " + worldWorldStateMap.size() + " world(s) during plugin disable/reload");
         for (Map.Entry<SleepWorldId, WorldState> entry : worldWorldStateMap.entrySet())
-            scheduleStateApply(entry.getKey(), entry.getValue(), "restore original state");
+            applyStateImmediately(entry.getKey(), entry.getValue(), "restore original state");
     }
 
     @EventHandler
@@ -109,9 +125,29 @@ public class WorldStateHandler implements Listener
         track(globalHandle);
     }
 
+    private void applyStateImmediately(SleepWorldId worldId, WorldState state, String action)
+    {
+        World world = worldAccessService.getWorld(worldId);
+        if (world == null)
+        {
+            logger.log(Level.WARNING, "Could not " + action + " for unloaded world " + worldId);
+            return;
+        }
+
+        state.applyState(world);
+    }
+
     private void track(TaskHandle taskHandle)
     {
         trackedTasks.add(taskHandle);
+    }
+
+    private void cancelTrackedTasks()
+    {
+        for (TaskHandle taskHandle : trackedTasks)
+            if (!taskHandle.isCancelled())
+                taskHandle.cancel();
+        trackedTasks.clear();
     }
 
 }

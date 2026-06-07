@@ -27,5 +27,5 @@ jobs:
       run: mvn -B -DskipTests package --file pom.xml
     - name: Guard against legacy scheduler usage
       run: |
-        ! rg -n "BukkitRunnable|BukkitScheduler|runTaskTimer|org\.bukkit\.scheduler" src/main/java
+        ! rg -n "BukkitRunnable|Bukkit\.getScheduler\(|runTask" src/main/java
         ! rg -n "Thread\.sleep|runTaskAsynchronously" src/main/java/be/betterplugins/bettersleeping/animation

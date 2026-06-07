@@ -97,13 +97,14 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
 
         // Register events
 
+        this.animationHandler = injector.getInstance(AnimationHandler.class);
         registerEvents(
             this.worldStateHandler,
             injector.getInstance(BedEventListener.class),
             injector.getInstance(BuffsHandler.class),
             injector.getInstance(TimeSetToDayCounter.class),
             injector.getInstance(PhantomHandler.class),
-            injector.getInstance(AnimationHandler.class)
+            this.animationHandler
         );
 
         // Handle sleeping through a runnable
