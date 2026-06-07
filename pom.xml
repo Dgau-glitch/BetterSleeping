@@ -45,12 +45,6 @@
             <url>https://repo.helpch.at/releases/</url>
         </repository>
 
-        <!-- bStats -->
-        <repository>
-            <id>CodeMC</id>
-            <url>https://repo.codemc.org/repository/maven-public</url>
-        </repository>
-
         <!-- JitPack repo for BetterYaml & BetterCore access  -->
         <repository>
             <id>jitpack.io</id>
@@ -113,14 +107,6 @@
             <scope>compile</scope>
         </dependency>
 
-        <!-- bStats -->
-        <dependency>
-            <groupId>org.bstats</groupId>
-            <artifactId>bstats-bukkit</artifactId>
-            <version>3.0.0</version>
-            <scope>compile</scope>
-        </dependency>
-
         <!-- Add GSit as a dependency -->
         <dependency>
             <groupId>me.gsit.main</groupId>
@@ -174,7 +160,6 @@
                     <minimizeJar>true</minimizeJar>
                     <artifactSet>
                         <includes>
-                            <include>org.bstats:*</include>
                             <include>com.github.BetterPluginsSpigot:*</include>
                             <include>com.google.inject:*</include>
                             <include>javax.inject:*</include>
@@ -182,10 +167,6 @@
                         </includes>
                     </artifactSet>
                     <relocations>
-                        <relocation>
-                            <pattern>org.bstats</pattern>
-                            <shadedPattern>be.betterplugins.bettersleeping.shade.bstats</shadedPattern>
-                        </relocation>
                         <relocation>
                             <pattern>be.betterplugins.core</pattern>
                             <shadedPattern>be.betterplugins.bettersleeping.shade.core</shadedPattern>

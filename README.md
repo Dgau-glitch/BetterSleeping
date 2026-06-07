@@ -6,7 +6,6 @@ Useful links:
 
 - Setup/configuration guide: [project wiki](https://github.com/Nuytemans-Dieter/BetterSleeping/wiki)
 - Releases: [GitHub releases](https://github.com/Nuytemans-Dieter/BetterSleeping/releases)
-- Metrics: [bStats](https://bstats.org/plugin/bukkit/BetterSleeping/7414)
 
 ## Supported platform
 
@@ -40,7 +39,6 @@ Configuration includes, but is not limited to:
 | PlaceholderAPI | Provides `%bettersleeping_*%` placeholders. | Placeholder calculation uses cached world/sleep snapshots and does not scan live worlds from arbitrary contexts. |
 | EssentialsX | AFK/vanish checks for bypass logic. | Player-specific Essentials calls must run from the player's entity scheduler context. Incompatible Essentials runtime classes disable the hook with a warning. |
 | GSit | Counts GSit sleeping/lying poses as sleepers when configured. | Pose and sleeper-state changes are scheduled through the player entity scheduler. Incompatible GSit versions are disabled with a warning. |
-| bStats | Anonymous usage metrics. | Charts use config/startup snapshots and avoid Bukkit entity/world access in library-managed callbacks. |
 
 ## Known limitations
 

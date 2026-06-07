@@ -14,7 +14,6 @@ import be.betterplugins.bettersleeping.model.sleeping.SleepWorldManager;
 import be.betterplugins.bettersleeping.model.world.WorldState;
 import be.betterplugins.bettersleeping.model.world.WorldStateHandler;
 import be.betterplugins.bettersleeping.services.bossbar.BossBarService;
-import be.betterplugins.bettersleeping.util.BStatsHandler;
 import be.betterplugins.bettersleeping.util.FileLogger;
 import be.betterplugins.bettersleeping.util.migration.SettingsMigrator;
 import be.betterplugins.core.interfaces.IReloadable;
@@ -156,9 +155,6 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
                 logger.log(Level.WARNING, "PlaceholderAPI hook disabled: incompatible PlaceholderAPI version, expansion API class missing");
             }
         }
-
-        // Enable bStats
-        injector.getInstance(BStatsHandler.class);
     }
 
     /**

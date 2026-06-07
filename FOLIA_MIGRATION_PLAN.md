@@ -201,13 +201,12 @@
 
 ### 13. Проверить hooks на Folia-совместимость
 
-**Задача:** отдельно мигрировать integrations: Essentials, PlaceholderAPI, GSit, bStats.
+**Задача:** отдельно мигрировать integrations: Essentials, PlaceholderAPI, GSit.
 
 **Что сделать:**
 - `PapiExpansion`: убедиться, что placeholder calculation не трогает чужие region objects; тяжелые операции заменить snapshots/cache.
 - `EssentialsHook`: проверить API-вызовы EssentialsX на thread-safety; при сомнениях выполнять через player entity scheduler или документировать ограничение.
 - `GSitListener`: все действия с player pose/sleep state выполнять через entity scheduler.
-- `BStatsHandler`: оставить как async/library-managed, но проверить отсутствие Bukkit entity/world access в custom charts.
 - Обновить `hooks.yml`/логирование, чтобы несовместимые hook версии явно отключались без падения плагина.
 
 **Критерии приемки:** каждый hook либо Folia-safe, либо отключается с понятным логом и не ломает старт BetterSleeping.
