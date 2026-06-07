@@ -8,6 +8,7 @@ import com.google.inject.Singleton;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.logging.Level;
@@ -24,13 +25,24 @@ public class EssentialsHook {
 
 
     /**
-     * A class for interaction through a possible Essentials hook
-     * This can be safely used when Essentials is not installed
+     * A class for interaction through a possible Essentials hook.
+     * Player-specific methods must be called from the player's Folia entity context.
+     * This can be safely used when Essentials is not installed or an incompatible implementation is installed.
      */
     @Inject
     public EssentialsHook(ConfigContainer config, BPLogger logger)
     {
-        essentials = (Essentials) Bukkit.getServer().getPluginManager().getPlugin("Essentials");
+        Plugin essentialsPlugin = Bukkit.getServer().getPluginManager().getPlugin("Essentials");
+        if (essentialsPlugin instanceof Essentials)
+        {
+            essentials = (Essentials) essentialsPlugin;
+        }
+        else
+        {
+            essentials = null;
+            if (essentialsPlugin != null)
+                logger.log(Level.WARNING, "Essentials hook disabled: installed plugin is not a compatible EssentialsX API implementation (" + essentialsPlugin.getClass().getName() + ")");
+        }
         isHooked = essentials != null;
 
         YamlConfiguration hooks = config.getHooks();
@@ -44,14 +56,15 @@ public class EssentialsHook {
         this.isVanishedIgnored = isVanishedIgnored;
         this.minAfkMilliseconds = minAfkSeconds * 1000L;
 
-        logger.log(Level.CONFIG, "Is Essentials hooked? " + isHooked);
+        logger.log(Level.CONFIG, "Is Essentials hooked? " + isHooked + (isHooked ? " (Folia note: AFK/vanish checks must run in player entity context)" : ""));
         logger.log(Level.CONFIG, "Are afk players ignored? " + isAfkIgnored + ", with a min afk time of " + minAfkMilliseconds);
         logger.log(Level.CONFIG, "Are vanished players ignored? " + isVanishedIgnored);
     }
 
 
     /**
-     * Check if this player's afk time is equal or bigger than the one specified in the settings
+     * Check if this player's afk time is equal or bigger than the one specified in the settings.
+     * Must be invoked from the player's entity scheduler context.
      *
      * @param player the player to be checked
      * @return true if the player has been afk for long enough, false otherwise
@@ -80,8 +93,9 @@ public class EssentialsHook {
 
 
     /**
-     * Get whether or not a player is afk
-     * Will always return false if Essentials is not hooked
+     * Get whether or not a player is afk.
+     * Must be invoked from the player's entity scheduler context.
+     * Will always return false if Essentials is not hooked.
      * @param player the player to be checked
      * @return whether the player is afk
      */
@@ -92,7 +106,8 @@ public class EssentialsHook {
 
 
     /**
-     * Gets whether or not a player is hidden according to Essentials
+     * Gets whether or not a player is hidden according to Essentials.
+     * Must be invoked from the player's entity scheduler context.
      * @param player the player to be checked
      * @return true if the player is vanished, false if not or if Essentials is not installed
      */

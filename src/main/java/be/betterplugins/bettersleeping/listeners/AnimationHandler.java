@@ -20,6 +20,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 
 @Singleton
@@ -28,7 +29,7 @@ public class AnimationHandler implements Listener, IReloadable
 
     private final boolean isEnabled;
 
-    private final Map<UUID, TaskHandle> sleepingAnimations;
+    private final Map<UUID, AnimationSession> sleepingAnimations;
     private final PluginScheduler scheduler;
 
     private final BPLogger logger;
@@ -54,24 +55,26 @@ public class AnimationHandler implements Listener, IReloadable
         }
 
         UUID playerId = player.getUniqueId();
-        TaskHandle[] scheduledHandle = new TaskHandle[1];
-        scheduledHandle[0] = scheduler.runForEntity(player, () -> startSleepingAnimationInEntityContext(player, scheduledHandle[0]));
-        TaskHandle previous = this.sleepingAnimations.put(playerId, scheduledHandle[0]);
-        if (previous != null && !previous.isCancelled())
+        AnimationSession session = new AnimationSession();
+        AnimationSession previous = this.sleepingAnimations.put(playerId, session);
+        if (previous != null)
             previous.cancel();
+
+        TaskHandle scheduledHandle = scheduler.runForEntity(player, () -> startSleepingAnimationInEntityContext(player, session));
+        session.setScheduledHandle(scheduledHandle);
     }
 
-    private void startSleepingAnimationInEntityContext(Player player, TaskHandle scheduledHandle)
+    private void startSleepingAnimationInEntityContext(Player player, AnimationSession session)
     {
         UUID playerId = player.getUniqueId();
-        if (this.sleepingAnimations.get(playerId) != scheduledHandle || !player.isOnline())
+        if (this.sleepingAnimations.get(playerId) != session || session.isCancelled() || !player.isOnline())
             return;
 
         this.logger.log(Level.FINEST, "Starting animation for player " + player.getName());
 
         ZZZAnimation animation = new ZZZAnimation(Particle.COMPOSTER, 0.5, 0.1, 200, scheduler);
         TaskHandle handle = animation.startAnimation(new PlayerSleepLocation(player));
-        this.sleepingAnimations.put(playerId, handle);
+        session.setAnimationHandle(handle);
     }
 
     @EventHandler
@@ -99,17 +102,14 @@ public class AnimationHandler implements Listener, IReloadable
 
     private void stopAnimation(UUID uuid)
     {
-        TaskHandle handle = this.sleepingAnimations.remove(uuid);
-        if (handle != null && !handle.isCancelled())
-            handle.cancel();
+        AnimationSession session = this.sleepingAnimations.remove(uuid);
+        if (session != null)
+            session.cancel();
     }
 
     private void stopAllAnimations()
     {
-        this.sleepingAnimations.forEach((uuid, handle) -> {
-            if (!handle.isCancelled())
-                handle.cancel();
-        });
+        this.sleepingAnimations.forEach((uuid, session) -> session.cancel());
         this.sleepingAnimations.clear();
     }
 
@@ -117,5 +117,44 @@ public class AnimationHandler implements Listener, IReloadable
     public void reload()
     {
         stopAllAnimations();
+    }
+
+    private static final class AnimationSession
+    {
+        private final AtomicReference<TaskHandle> scheduledHandle = new AtomicReference<>();
+        private final AtomicReference<TaskHandle> animationHandle = new AtomicReference<>();
+        private volatile boolean cancelled;
+
+        void setScheduledHandle(TaskHandle handle)
+        {
+            this.scheduledHandle.set(handle);
+            if (cancelled)
+                cancelHandle(handle);
+        }
+
+        void setAnimationHandle(TaskHandle handle)
+        {
+            this.animationHandle.set(handle);
+            if (cancelled)
+                cancelHandle(handle);
+        }
+
+        boolean isCancelled()
+        {
+            return cancelled;
+        }
+
+        void cancel()
+        {
+            this.cancelled = true;
+            cancelHandle(scheduledHandle.get());
+            cancelHandle(animationHandle.get());
+        }
+
+        private static void cancelHandle(TaskHandle handle)
+        {
+            if (handle != null && !handle.isCancelled())
+                handle.cancel();
+        }
     }
 }

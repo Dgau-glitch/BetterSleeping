@@ -34,6 +34,7 @@ public class SleepWorldTicker
 
     private TimeState timeState;
     private boolean isSkipping;
+    private volatile SleepStatus cachedSleepStatus;
 
     public SleepWorldTicker(ConfigContainer config, SleepWorld sleepWorld, MessageDeliveryService messageDeliveryService, BPLogger logger)
     {
@@ -53,6 +54,7 @@ public class SleepWorldTicker
 
         this.isSkipping = false;
         this.timeState = TimeState.fromWorld(sleepWorld);
+        this.cachedSleepStatus = createSleepStatus();
 
         logger.log(Level.FINEST, "Day speedup: " + daySpeedup);
         logger.log(Level.FINEST, "Night speedup: " + nightSpeedup);
@@ -88,6 +90,7 @@ public class SleepWorldTicker
             sleepers.add(sleeper.getUniqueId());
 
             SleepStatus sleepStatus = getSleepStatus();
+            this.cachedSleepStatus = sleepStatus;
             this.messageDeliveryService.send(players, "bed_enter_broadcast",
                     new MsgEntry("<num_sleeping>", sleepStatus.getNumSleepers()),
                     new MsgEntry("<needed_sleeping>", sleepStatus.getNumNeeded()),
@@ -132,6 +135,18 @@ public class SleepWorldTicker
      * @return the amount of sleeping players
      */
     public SleepStatus getSleepStatus()
+    {
+        SleepStatus sleepStatus = createSleepStatus();
+        this.cachedSleepStatus = sleepStatus;
+        return sleepStatus;
+    }
+
+    public SleepStatus getCachedSleepStatus()
+    {
+        return cachedSleepStatus;
+    }
+
+    private SleepStatus createSleepStatus()
     {
         return new SleepStatus
         (
@@ -185,6 +200,8 @@ public class SleepWorldTicker
     {
         List<Player> playersInWorld = getOnlinePlayersInManagedWorld();
         retainValidSleepers(playersInWorld);
+
+        this.cachedSleepStatus = getSleepStatus();
 
         // Calculate the amounts
         int numSleepers = sleepers.size();

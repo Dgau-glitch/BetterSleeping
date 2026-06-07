@@ -25,4 +25,13 @@ public class StaticModule extends AbstractModule
         return new ArrayList<>(Bukkit.getOnlinePlayers());
     }
 
+    @Provides
+    @Named("normal_world_count")
+    public Long provideNormalWorldCount()
+    {
+        return Bukkit.getWorlds().stream()
+                .filter(world -> world.getEnvironment() == World.Environment.NORMAL || world.getEnvironment() == World.Environment.CUSTOM)
+                .count();
+    }
+
 }

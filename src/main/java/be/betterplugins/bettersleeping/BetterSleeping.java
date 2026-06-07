@@ -1,6 +1,7 @@
 package be.betterplugins.bettersleeping;
 
 import be.betterplugins.bettersleeping.api.BetterSleepingAPI;
+import be.betterplugins.bettersleeping.commands.BetterSleepingCommandFacade;
 import be.betterplugins.bettersleeping.guice.BetterSleepingModule;
 import be.betterplugins.bettersleeping.guice.HooksModule;
 import be.betterplugins.bettersleeping.guice.StaticModule;
@@ -16,7 +17,6 @@ import be.betterplugins.bettersleeping.services.bossbar.BossBarService;
 import be.betterplugins.bettersleeping.util.BStatsHandler;
 import be.betterplugins.bettersleeping.util.FileLogger;
 import be.betterplugins.bettersleeping.util.migration.SettingsMigrator;
-import be.betterplugins.core.commands.BPCommandHandler;
 import be.betterplugins.core.interfaces.IReloadable;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import com.google.inject.Guice;
@@ -91,8 +91,9 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         this.worldStateHandler.setWorldStates( new WorldState( false, 200 ));
 
         // Handle commands
-        BPCommandHandler commandHandler = injector.getInstance(BPCommandHandler.class);
-        getCommand("bettersleeping").setExecutor( commandHandler );
+        BetterSleepingCommandFacade commandFacade = injector.getInstance(BetterSleepingCommandFacade.class);
+        getCommand("bettersleeping").setExecutor(commandFacade);
+        getCommand("bettersleeping").setTabCompleter(commandFacade);
 
         // Register events
 
@@ -143,7 +144,16 @@ public class BetterSleeping extends JavaPlugin implements IReloadable
         // Register the PAPI expansion
         if(Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null)
         {
-            injector.getInstance(PapiExpansion.class).register();
+            try
+            {
+                Class.forName("me.clip.placeholderapi.expansion.PlaceholderExpansion");
+                injector.getInstance(PapiExpansion.class).register();
+                logger.log(Level.CONFIG, "PlaceholderAPI hook enabled");
+            }
+            catch (ClassNotFoundException ignored)
+            {
+                logger.log(Level.WARNING, "PlaceholderAPI hook disabled: incompatible PlaceholderAPI version, expansion API class missing");
+            }
         }
 
         // Enable bStats

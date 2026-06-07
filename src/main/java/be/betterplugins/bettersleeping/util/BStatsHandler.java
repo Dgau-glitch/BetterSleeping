@@ -5,13 +5,13 @@ import be.betterplugins.bettersleeping.hooks.EssentialsHook;
 import be.betterplugins.bettersleeping.listeners.BuffsHandler;
 import be.betterplugins.bettersleeping.listeners.TimeSetToDayCounter;
 import com.google.inject.Inject;
+import com.google.inject.name.Named;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.AdvancedPie;
 import org.bstats.charts.DrilldownPie;
 import org.bstats.charts.SimplePie;
 import org.bstats.charts.SingleLineChart;
 import org.bukkit.GameMode;
-import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
@@ -26,7 +26,7 @@ public class BStatsHandler {
             JavaPlugin plugin,
             ConfigContainer configContainer,
             EssentialsHook essentialsHook, BuffsHandler buffsHandler, TimeSetToDayCounter timeSetToDayCounter,
-            List<World> worlds
+            @Named("normal_world_count") Long normalWorldCount
     )
     {
 
@@ -226,8 +226,8 @@ public class BStatsHandler {
             )
         );
 
-        long numWorlds = worlds.stream().filter( world -> world.getEnvironment() == World.Environment.NORMAL || world.getEnvironment() == World.Environment.CUSTOM ).count();
-        metrics.addCustomChart(new SimplePie("is_multiworld", () -> numWorlds > 1 ? "Yes" : "No" ));
+        // bStats charts may run on library-managed threads, so this chart only captures the startup snapshot provided by DI.
+        metrics.addCustomChart(new SimplePie("is_multiworld", () -> normalWorldCount > 1 ? "Yes" : "No" ));
 
         metrics.addCustomChart(new SimplePie("is_premium", () -> "No" ));
 

@@ -94,6 +94,12 @@ public class SleepWorldManager
         return managedWorld != null ? managedWorld.ticker.getSleepStatus() : null;
     }
 
+    public @Nullable SleepStatus getCachedSleepStatus(String worldName)
+    {
+        ManagedSleepWorld managedWorld = this.sleepWorlds.get(worldName);
+        return managedWorld != null ? managedWorld.ticker.getCachedSleepStatus() : null;
+    }
+
 
     /**
      * Check whether this world is a BetterSleeping world

@@ -23,6 +23,7 @@ public class BecomeDayEvent extends Event
     private final Cause cause;              // The cause of time being set to day
     private final List<PlayerSnapshot> sleepers;
     private final List<PlayerSnapshot> nonSleepers;
+    private final EventSnapshot snapshot;
 
 
     public enum Cause
@@ -42,6 +43,7 @@ public class BecomeDayEvent extends Event
         this.cause = cause;
         this.sleepers = toSnapshots(sleepers, true);
         this.nonSleepers = toSnapshots(nonSleepers, false);
+        this.snapshot = new EventSnapshot(worldName, cause, this.sleepers, this.nonSleepers);
     }
 
     private List<PlayerSnapshot> toSnapshots(List<Player> players, boolean slept)
@@ -67,9 +69,12 @@ public class BecomeDayEvent extends Event
 
 
     /**
-     * Get the world in which the time was set to day
+     * Get the world in which the time was set to day.
+     *
      * @return the world
+     * @deprecated Prefer {@link #getWorldName()} or {@link #getSnapshot()} in Folia handlers; world mutations must be scheduled by region.
      */
+    @Deprecated
     public World getWorld()
     {
         return world;
@@ -107,6 +112,17 @@ public class BecomeDayEvent extends Event
         return Collections.unmodifiableList(snapshots);
     }
 
+    /**
+     * Get a region-safe immutable event DTO for external Folia consumers.
+     * Mutations based on this data must be scheduled through Folia entity/world schedulers by the consumer.
+     *
+     * @return immutable snapshot of this event
+     */
+    public EventSnapshot getSnapshot()
+    {
+        return snapshot;
+    }
+
 
     /**
      * Get a List of players that slept this night
@@ -137,6 +153,63 @@ public class BecomeDayEvent extends Event
                 .map(snapshot -> Bukkit.getPlayer(snapshot.getPlayerId()))
                 .filter(player -> player != null && player.isOnline())
                 .collect(Collectors.toList());
+    }
+
+
+    public static final class EventSnapshot
+    {
+        private final String worldName;
+        private final Cause cause;
+        private final List<PlayerSnapshot> sleepers;
+        private final List<PlayerSnapshot> nonSleepers;
+
+        private EventSnapshot(String worldName, Cause cause, List<PlayerSnapshot> sleepers, List<PlayerSnapshot> nonSleepers)
+        {
+            this.worldName = worldName;
+            this.cause = cause;
+            this.sleepers = sleepers;
+            this.nonSleepers = nonSleepers;
+        }
+
+        public String getWorldName()
+        {
+            return worldName;
+        }
+
+        public Cause getCause()
+        {
+            return cause;
+        }
+
+        public List<PlayerSnapshot> getSleepers()
+        {
+            return sleepers;
+        }
+
+        public List<PlayerSnapshot> getNonSleepers()
+        {
+            return nonSleepers;
+        }
+
+        public List<UUID> getSleptPlayerIds()
+        {
+            return sleepers.stream().map(PlayerSnapshot::getPlayerId).collect(Collectors.toList());
+        }
+
+        public List<String> getSleptPlayerNames()
+        {
+            return sleepers.stream().map(PlayerSnapshot::getPlayerName).collect(Collectors.toList());
+        }
+
+        public List<UUID> getNonSleptPlayerIds()
+        {
+            return nonSleepers.stream().map(PlayerSnapshot::getPlayerId).collect(Collectors.toList());
+        }
+
+        public List<String> getNonSleptPlayerNames()
+        {
+            return nonSleepers.stream().map(PlayerSnapshot::getPlayerName).collect(Collectors.toList());
+        }
     }
 
     public static final class PlayerSnapshot
