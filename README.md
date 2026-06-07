@@ -14,7 +14,7 @@ Useful links:
 | Server API | Folia API `1.21.11-R0.1-SNAPSHOT` |
 | Minecraft server family | Folia/Paper 1.21.x, with Folia as the primary target |
 | Java runtime | Java 21 |
-| Plugin API version | `api-version: "1.21"` |
+| Plugin API metadata | `api-version: "1.21"`, `folia-supported: true` |
 
 Older Spigot/Paper-only runtimes are no longer the target of this branch. The codebase uses Folia schedulers and must be compiled and tested against the Folia API.
 

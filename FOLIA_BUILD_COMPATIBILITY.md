@@ -6,6 +6,7 @@ This file records the build/test incompatibilities found while moving the first 
 
 - `org.spigotmc:spigot-api:1.17.1-R0.1-SNAPSHOT` was replaced by `dev.folia:folia-api:1.21.11-R0.1-SNAPSHOT` with `provided` scope.
 - Java 8 compiler source/target was replaced by Maven `release` 21.
+- `plugin.yml` declares `api-version: "1.21"` and `folia-supported: true`, which is required for Folia to load a legacy `plugin.yml` plugin.
 - `maven-shade-plugin` `3.3.0` failed on Java 21 class files with `Unsupported class file major version 65`; it was upgraded to `3.6.1`.
 - `me.clip:placeholderapi:2.11.2` was not available from the current PlaceholderAPI repository URL during resolution; the dependency was updated to `2.11.6` and the repository to `https://repo.helpch.at/releases/`.
 - The old `mockito-inline:4.6.1` setup could not reliably mock the widened Folia/Paper `Player` interface graph on Java 21; tests now use `mockito-core:5.12.0`.

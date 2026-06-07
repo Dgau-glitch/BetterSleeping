@@ -2,6 +2,7 @@ name: BetterSleeping4
 author: vallas
 version: ${project.version}
 api-version: "1.21"
+folia-supported: true
 main: be.betterplugins.bettersleeping.BetterSleeping
 description: A plugin that makes sleeping in multiplayer fun again!
 softdepend: [Essentials, PlaceholderAPI, MultiWorld, Multiverse, Multiverse-Core, BentoBox, Skyblock, GSit]
