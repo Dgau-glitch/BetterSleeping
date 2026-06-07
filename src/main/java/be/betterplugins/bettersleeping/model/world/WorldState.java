@@ -71,7 +71,7 @@ public class WorldState
     }
 
     /**
-     * Update the given world to this state. Must be called from the world's owning region context.
+     * Update the given world to this state. Must be called from the Folia global region because time, weather and game rules are global world state.
      *
      * @param world the world whose state is to be modified.
      */

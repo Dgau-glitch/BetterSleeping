@@ -13,6 +13,10 @@ public class FakePluginScheduler implements PluginScheduler
 {
     private final boolean runRepeatingImmediately;
     private final List<FakeTaskHandle> handles = new ArrayList<>();
+    private int runGlobalCount;
+    private int repeatGlobalCount;
+    private int runAtLocationCount;
+    private int repeatAtLocationCount;
 
     public FakePluginScheduler()
     {
@@ -27,6 +31,7 @@ public class FakePluginScheduler implements PluginScheduler
     @Override
     public TaskHandle runGlobal(Runnable task)
     {
+        runGlobalCount++;
         task.run();
         return track();
     }
@@ -34,6 +39,7 @@ public class FakePluginScheduler implements PluginScheduler
     @Override
     public TaskHandle repeatGlobal(Runnable task, long initialDelayTicks, long periodTicks)
     {
+        repeatGlobalCount++;
         if (runRepeatingImmediately)
             task.run();
         return track();
@@ -42,6 +48,7 @@ public class FakePluginScheduler implements PluginScheduler
     @Override
     public TaskHandle runAtLocation(Location location, Runnable task)
     {
+        runAtLocationCount++;
         task.run();
         return track();
     }
@@ -49,6 +56,7 @@ public class FakePluginScheduler implements PluginScheduler
     @Override
     public TaskHandle repeatAtLocation(Location location, Runnable task, long initialDelayTicks, long periodTicks)
     {
+        repeatAtLocationCount++;
         if (runRepeatingImmediately)
             task.run();
         return track();
@@ -105,6 +113,26 @@ public class FakePluginScheduler implements PluginScheduler
     public FakeTaskHandle getLastHandle()
     {
         return handles.get(handles.size() - 1);
+    }
+
+    public int getRunGlobalCount()
+    {
+        return runGlobalCount;
+    }
+
+    public int getRepeatGlobalCount()
+    {
+        return repeatGlobalCount;
+    }
+
+    public int getRunAtLocationCount()
+    {
+        return runAtLocationCount;
+    }
+
+    public int getRepeatAtLocationCount()
+    {
+        return repeatAtLocationCount;
     }
 
     private FakeTaskHandle track()

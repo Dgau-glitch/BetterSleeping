@@ -87,14 +87,14 @@
 
 **Критерии приемки:** расчет `SleepStatus`, sleep-speedup и sleeper counters можно unit-тестировать без Bukkit `World`.
 
-### 4. Перевести `SleepRunnable` в Folia region task по миру
+### 4. Перевести `SleepRunnable` в Folia global/world-state task
 
 **Задача:** заменить `BukkitRunnable` основного цикла сна на управляемый Folia task.
 
 **Что сделать:**
 - Переименовать `SleepRunnable` в `SleepTickService` или `SleepWorldTicker`, не наследоваться от `BukkitRunnable`.
-- Запускать per-world тик через `PluginScheduler#repeatAtLocation` в стабильной локации мира, например spawn location, с периодом 1 tick.
-- Все операции `World#getTime`, `World#setTime`, `World#setStorm`, `World#setThundering`, `World#getPlayers` выполнять внутри этого region task или через `WorldAccessService`.
+- Запускать per-world тик, который меняет время/погоду (`World#getTime`, `World#setTime`, `World#setStorm`, `World#setThundering`), через `PluginScheduler#repeatGlobal`, потому что Folia относит time/weather/gamerule state к global region.
+- Операции с игроками из sleep tick выполнять через snapshots/UUID и per-entity delivery; location/region tasks использовать только для chunk/location-owned действий, а не для `World#setTime`.
 - Создание и вызов `BecomeDayEvent` выполнять из безопасного scheduler-контекста; если событие содержит игроков из разных регионов, передавать UUID/snapshot или гарантировать дальнейшую обработку через entity scheduler.
 - Сохранить semantics: ускорение дня/ночи, natural skip, sleep skip, сообщения `sleep_possible_*`, `enough_sleeping`, `morning_message`.
 

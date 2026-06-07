@@ -12,7 +12,6 @@ import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import org.bukkit.GameRule;
 import org.bukkit.World;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -54,24 +53,21 @@ public class SleepWorldManager
             String isEnabledPath = "world_settings." + world.getName() + ".enabled";
             boolean isEnabled = ( !sleepingSettings.contains(isEnabledPath) ) || sleepingSettings.getBoolean(isEnabledPath);
 
-            Boolean doDayLightRule = world.getGameRuleValue(GameRule.DO_DAYLIGHT_CYCLE);
-            boolean doDayLightCycle = doDayLightRule == null || doDayLightRule;
-
-            // BetterSleeping owns the daylight-cycle gamerule via WorldStateHandler, which applies it through Folia schedulers.
-            // Do not require the scheduled gamerule mutation to have completed before enabling the world ticker.
+            // BetterSleeping owns world time/weather/gamerule state from the Folia global region.
+            // The sleep ticker is scheduled globally because World#setTime is rejected from location/region tasks.
             if (isEnabled)
             {
                 logger.log(Level.CONFIG, "Enabling BetterSleeping in world " + world.getName());
 
                 SleepWorld sleepWorld = new SleepWorld(world, config, bypassChecker, logger, worldAccess);
                 SleepWorldTicker ticker = new SleepWorldTicker(config, sleepWorld, messageDeliveryService, logger);
-                TaskHandle taskHandle = scheduler.repeatAtLocation(sleepWorld.getSchedulingLocation(), ticker::tick, 1L, 1L);
+                TaskHandle taskHandle = scheduler.repeatGlobal(ticker::tick, 1L, 1L);
 
                 this.sleepWorlds.put(sleepWorld.getWorldName(), new ManagedSleepWorld(ticker, taskHandle));
             }
             else
             {
-                logger.log(Level.CONFIG, "NOT enabling BetterSleeping in world " + world.getName() + ". Enabled in config? " + isEnabled + ". DoDayLightCycle before scheduled state apply? " + doDayLightCycle);
+                logger.log(Level.CONFIG, "NOT enabling BetterSleeping in world " + world.getName() + ". Enabled in config? " + isEnabled);
             }
         }
     }

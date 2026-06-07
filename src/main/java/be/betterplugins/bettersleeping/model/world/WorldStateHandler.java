@@ -6,7 +6,6 @@ import be.betterplugins.bettersleeping.services.scheduler.TaskHandle;
 import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import com.google.inject.Inject;
-import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -110,17 +109,7 @@ public class WorldStateHandler implements Listener
                 return;
             }
 
-            Location schedulingLocation = world.getSpawnLocation();
-            TaskHandle regionHandle = scheduler.runAtLocation(schedulingLocation, () -> {
-                World currentWorld = worldAccessService.getWorld(worldId);
-                if (currentWorld == null)
-                {
-                    logger.log(Level.WARNING, "Could not " + action + " for unloaded world " + worldId + " after scheduling");
-                    return;
-                }
-                state.applyState(currentWorld);
-            });
-            track(regionHandle);
+            state.applyState(world);
         });
         track(globalHandle);
     }

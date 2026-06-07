@@ -53,8 +53,8 @@ Configuration includes, but is not limited to:
 
 Use `PluginScheduler` as the only scheduling entry point in BetterSleeping code:
 
-- `runGlobal` / `repeatGlobal` for global server state or console command dispatch.
-- `runAtLocation` / `repeatAtLocation` for world or location-owned operations.
+- `runGlobal` / `repeatGlobal` for global server state, console command dispatch, world time, weather and game-rule mutations.
+- `runAtLocation` / `repeatAtLocation` for chunk/location-owned operations only; do not use location tasks for `World#setTime`.
 - `runForEntity` / `runForEntityLater` / `repeatForEntity` for player/entity reads and mutations.
 - `runAsync` / `repeatAsync` only for pure computation without Bukkit `World`, `Entity`, or `Player` access.
 

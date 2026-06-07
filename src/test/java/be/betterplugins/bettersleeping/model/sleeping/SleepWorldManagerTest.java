@@ -1,57 +1,63 @@
-package be.betterplugins.bettersleeping.model.world;
+package be.betterplugins.bettersleeping.model.sleeping;
 
-import be.betterplugins.bettersleeping.model.sleeping.SleepWorldId;
+import be.betterplugins.bettersleeping.listeners.AnimationHandler;
+import be.betterplugins.bettersleeping.model.ConfigContainer;
+import be.betterplugins.bettersleeping.model.permissions.BypassChecker;
+import be.betterplugins.bettersleeping.services.messaging.MessageDeliveryService;
 import be.betterplugins.bettersleeping.services.world.WorldAccessService;
 import be.betterplugins.core.messaging.logging.BPLogger;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.junit.Test;
 import testutil.FakePluginScheduler;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class WorldStateHandlerTest
+public class SleepWorldManagerTest
 {
     @Test
-    public void revertWorldStatesDoesNotScheduleTasksDuringDisable()
+    public void schedulesWorldTickerOnGlobalRegionBecauseWorldTimeIsGlobal()
     {
         World world = mock(World.class);
-        UUID worldId = UUID.randomUUID();
-        when(world.getUID()).thenReturn(worldId);
         when(world.getName()).thenReturn("world");
+        when(world.getUID()).thenReturn(UUID.randomUUID());
+        when(world.getEnvironment()).thenReturn(World.Environment.NORMAL);
+        when(world.getTime()).thenReturn(0L);
         when(world.getSpawnLocation()).thenReturn(new Location(world, 0, 64, 0));
 
-        FakePluginScheduler scheduler = new FakePluginScheduler();
-        TestWorldAccessService worldAccessService = new TestWorldAccessService(world);
-        WorldState originalState = mock(WorldState.class);
-        WorldState temporaryState = mock(WorldState.class);
-        WorldStateHandler handler = new WorldStateHandler(
-                Map.of(worldAccessService.id, originalState),
+        YamlConfiguration sleepingSettings = mock(YamlConfiguration.class);
+        when(sleepingSettings.getString("sleeper_calculator")).thenReturn("percentage");
+        when(sleepingSettings.getInt("needed")).thenReturn(50);
+        when(sleepingSettings.getDouble("day_length")).thenReturn(700D);
+        when(sleepingSettings.getDouble("night_length")).thenReturn(500D);
+        when(sleepingSettings.getDouble("night_skip_length")).thenReturn(10D);
+
+        ConfigContainer config = mock(ConfigContainer.class);
+        when(config.getSleeping_settings()).thenReturn(sleepingSettings);
+
+        FakePluginScheduler scheduler = new FakePluginScheduler(false);
+
+        new SleepWorldManager(
+                List.of(world),
+                config,
+                mock(BypassChecker.class),
+                mock(MessageDeliveryService.class),
+                mock(AnimationHandler.class),
                 scheduler,
-                worldAccessService,
+                new TestWorldAccessService(world),
                 mock(BPLogger.class)
         );
-        handler.setWorldStates(temporaryState);
-        int scheduledTasksBeforeDisable = scheduler.getHandles().size();
 
-        handler.revertWorldStates();
-
-        assertEquals(scheduledTasksBeforeDisable, scheduler.getHandles().size());
-        assertEquals(1, scheduler.getRunGlobalCount());
-        assertEquals(0, scheduler.getRunAtLocationCount());
-        verify(originalState).applyState(world);
-        verify(temporaryState).applyState(world);
-        verify(temporaryState, never()).applyState(null);
+        assertEquals(1, scheduler.getRepeatGlobalCount());
+        assertEquals(0, scheduler.getRepeatAtLocationCount());
     }
 
     private static final class TestWorldAccessService implements WorldAccessService
@@ -117,7 +123,7 @@ public class WorldStateHandlerTest
         @Override
         public boolean isInWorld(SleepWorldId worldId, Player player)
         {
-            return false;
+            return id.equals(worldId) && player.getWorld().equals(world);
         }
     }
 }
